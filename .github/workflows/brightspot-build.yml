@@ -36,6 +36,12 @@ on:
         default: true
         type: string
 
+      war-build-dir:
+        description: 'Directory containing the compiled WAR file. This overrides the default which is web/build/libs'
+        required: false
+        default: 'web/build/libs'
+        type: string
+
     secrets:
       GRADLE_CACHE_USERNAME:
         required: false
@@ -124,5 +130,12 @@ jobs:
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
           GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
         run: ./brightspot/brightspot/build-gradle.sh
+
+      - name: Store Gradle Build
+        if: ${{ inputs.build-gradle == 'true' }}
+        uses: actions/upload-artifact@v3
+        with:
+            name: brightspot-build
+            path: ${ inputs.war-build-dir }
 
 

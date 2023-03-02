@@ -58,12 +58,6 @@ on:
         default: '16.11.0'
         type: string
 
-      war-build-dir:
-        description: 'Directory containing the compiled WAR file. This overrides the default which is web/build/libs'
-        required: false
-        default: 'web/build/libs'
-        type: string
-
     secrets:
       CLOUD_AWS_ACCOUNT_ID:
         required: false
@@ -85,6 +79,13 @@ jobs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
     steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: brightspot-build
+          path: brightspot-build
+
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
@@ -111,7 +112,7 @@ jobs:
           AWS_DEFAULT_REGION: ${{ inputs.region }}
           DEPLOY_BUCKET: ${{ inputs.deploy-bucket }}
           DEPLOY_BUCKET_PREFIX: ${{ inputs.deploy-bucket-prefix }}
-          DEPLOY_SOURCE_DIR: ${{ inputs.war-build-dir }}
+          DEPLOY_SOURCE_DIR: brightspot-build
         shell: bash
         run: ./brightspot/aws/aws-s3-deploy.sh
 
@@ -162,7 +163,7 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
-          cp ${{ inputs.war-build-dir }}/*.war etc/container/web.war
+          cp brightspot-build/*.war etc/container/web.war
           cd etc/container
 
           PROJECT="${{ inputs.project }}"
