@@ -3,16 +3,6 @@ name: 'Brightspot AWS Deploy'
 on:
   workflow_call:
     inputs:
-      project-aws-account-id:
-        description: 'AWS Account ID of project'
-        required: true
-        type: string
-
-      cloud-aws-account-id:
-        description: 'AWS Account ID of Cloud project'
-        required: true
-        type: string
-
       region:
         description: 'Region project is deployed to'
         required: true
