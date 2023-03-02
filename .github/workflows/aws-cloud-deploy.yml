@@ -40,6 +40,18 @@ on:
         default: true
         type: boolean
 
+      java-distribution:
+        description: 'Java distribution'
+        required: false
+        default: 'adopt'
+        type: string
+
+      java-version:
+        description: 'Java version'
+        required: false
+        default: '11'
+        type: string
+
       node-version:
         description: 'Node version'
         required: false
@@ -79,6 +91,12 @@ jobs:
         uses: actions/setup-node@v3
         with:
             node-version: ${{ inputs.node-version }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
 
       - name: Get Tag Version
         shell: bash
