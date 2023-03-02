@@ -92,7 +92,7 @@ jobs:
           DEPLOY_BUCKET_PREFIX: ${{ inputs.deploy-bucket-prefix }}
           DEPLOY_SOURCE_DIR: ${{ inputs.war-build-dir }}
         shell: bash
-        run: ./brightspot/.github/workflows/aws/aws-s3-deploy.sh
+        run: ./brightspot/aws/aws-s3-deploy.sh
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1

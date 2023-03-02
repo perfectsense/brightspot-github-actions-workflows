@@ -94,7 +94,7 @@ jobs:
       - name: Build with Maven
         if: ${{ inputs.build-maven == 'true' }}
         shell: bash
-        run: ./brightspot/.github/workflows/brightspot/build-maven.sh
+        run: ./brightspot/brightspot/build-maven.sh
 
       - name: Build with Gradle
         if: ${{ inputs.build-gradle == 'true' }}
@@ -102,6 +102,6 @@ jobs:
         env:
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
           GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-        run: ./brightspot/.github/workflows/brightspot/build-gradle.sh
+        run: ./brightspot/brightspot/build-gradle.sh
 
 
