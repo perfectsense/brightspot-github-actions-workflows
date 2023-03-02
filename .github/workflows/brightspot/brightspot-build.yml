@@ -1,0 +1,107 @@
+name: 'Brightspot Build'
+
+on:
+  workflow_call:
+    inputs:
+      build-maven:
+        description: 'Build with Maven'
+        default: false
+        type: string
+
+      build-gradle:
+        description: 'Build with Gradle'
+        default: true
+        type: string
+
+      java-distribution:
+        description: 'Java distribution'
+        required: false
+        default: 'adopt'
+        type: string
+
+      java-version:
+        description: 'Java version'
+        required: false
+        default: '11'
+        type: string
+
+      cache-npm:
+        description: 'Cache NPM'
+        default: true
+        type: string
+
+    secrets:
+      GRADLE_CACHE_USERNAME:
+        required: false
+      GRADLE_CACHE_PASSWORD:
+        required: false
+
+jobs:
+  build:
+    name: "Build"
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
+      container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+
+      - uses: actions/checkout@v3
+        with:
+          repository: perfectsense/brightspot-github-actions-workflows
+          ref: v1
+          path: ./brightspot
+
+      - name: Maven Cache
+        if: ${{ inputs.build-maven == 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Gradle Cache
+        if: ${{ inputs.build-gradle == 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: NPM Cache
+        if: ${{ inputs.cache-npm == 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            ~/.yarn/cache
+            ~/.config/yarn/global
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Build with Maven
+        if: ${{ inputs.build-maven == 'true' }}
+        shell: bash
+        run: ./brightspot/.github/workflows/brightspot/build-maven.sh
+
+      - name: Build with Gradle
+        if: ${{ inputs.build-gradle == 'true' }}
+        shell: bash
+        env:
+          GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+          GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+        run: ./brightspot/.github/workflows/brightspot/build-gradle.sh
+
+

@@ -1,0 +1,161 @@
+name: 'Brightspot AWS Deploy'
+
+on:
+  workflow_call:
+    inputs:
+      project-aws-account-id:
+        description: 'AWS Account ID of project'
+        required: true
+        type: string
+
+      cloud-aws-account-id:
+        description: 'AWS Account ID of Cloud project'
+        required: true
+        type: string
+
+      region:
+        description: 'Region project is deployed to'
+        required: true
+        type: string
+
+      project:
+        description: 'Shortname for project'
+        required: true
+        type: string
+
+      repository:
+        description: 'Repository name. This overrides the default which is ${project}/${project}'
+        required: false
+        type: string
+
+      deploy-s3:
+        description: 'Deploy to S3 in addition to the container build'
+        required: false
+        default: false
+        type: boolean
+
+      deploy-bucket:
+        description: 'S3 bucket to deploy to'
+        required: false
+        type: string
+
+      deploy-bucket-prefix:
+        description: 'Directory prefix within the S3 bucket'
+        required: false
+        type: string
+
+      deploy-container:
+        description: 'Deploy to container build'
+        required: false
+        default: true
+        type: boolean
+
+      war-build-dir:
+        description: 'Directory containing the compiled WAR file. This overrides the default which is web/build/libs'
+        required: false
+        default: 'web/build/libs'
+        type: string
+
+    secrets:
+      CLOUD_AWS_ACCESS_KEY_ID:
+        required: false
+      CLOUD_AWS_SECRET_ACCESS_KEY:
+        required: false
+      CLOUD_AWS_SESSION_TOKEN:
+        required: false
+
+jobs:
+  build:
+    name: "Build"
+    runs-on: ubuntu-latest
+    # Map the job outputs to step outputs
+    outputs:
+      container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
+      container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get Tag Version
+        shell: bash
+        run: |
+          echo "GITHUB_ACTIONS_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+
+      - name: Deploy to S3
+        if: ${{ inputs.deploy-s3 == 'true' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUD_AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.CLOUD_AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: ${{ inputs.region }}
+          DEPLOY_BUCKET: ${{ inputs.deploy-bucket }}
+          DEPLOY_BUCKET_PREFIX: ${{ inputs.deploy-bucket-prefix }}
+          DEPLOY_SOURCE_DIR: ${{ inputs.war-build-dir }}
+        shell: bash
+        run: ./brightspot/.github/workflows/aws/aws-s3-deploy.sh
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.CLOUD_AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.CLOUD_AWS_SESSION_TOKEN}}
+          aws-region: ${{ inputs.region }}
+
+      - name: Login to project ECR
+        uses: docker/login-action@v1
+        if: ${{ inputs.deploy-container == 'true' }}
+        with:
+            registry: ${{ inputs.project-aws-account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+
+      - name: Login to Brightspot Cloud ECR
+        uses: docker/login-action@v1
+        if: ${{ inputs.deploy-container == 'true' }}
+        with:
+            registry: ${{ inputs.cloud-aws-account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+
+      - name: Build Container
+        id: build-container
+        if: ${{ inputs.deploy-container == 'true' }}
+        shell: bash
+        run: |
+          version=""
+          build=""
+
+          echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
+          echo "GITHUB_ACTIONS_PULL_REQUEST ${GITHUB_ACTIONS_PULL_REQUEST}"
+
+          if [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
+              version="pullrequest-$GITHUB_ACTIONS_PULL_REQUEST"
+              build=pullrequest-$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER
+          elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
+              echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
+              version=release-${GITHUB_ACTIONS_TAG/v/}
+              build=release-${GITHUB_ACTIONS_TAG/v/}
+          else
+              COMMIT_COUNT=$(git rev-list --count HEAD)
+              COMMIT_SHA=$(git rev-parse --short=6 HEAD)
+              build=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              build+=-build$GITHUB_RUN_NUMBER
+              version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+          fi
+
+          cp ${{ inputs.war-build-dir }}/*.war etc/container/web.war
+          cd etc/container
+
+          PROJECT="${{ inputs.project }}"
+          REPOSITORY="${{ inputs.repository }}"
+
+          if [ -z ${REPOSITORY} ]; then
+             REPOSITORY="$PROJECT/$PROJECT"
+          fi
+
+          REGISTRY="${{ inputs.project-aws-account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
+          VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
+
+          docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile .
+
+          echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
+          echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
+
