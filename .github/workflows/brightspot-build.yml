@@ -6,12 +6,12 @@ on:
       build-maven:
         description: 'Build with Maven'
         default: false
-        type: string
+        type: boolean
 
       build-gradle:
         description: 'Build with Gradle'
         default: true
-        type: string
+        type: boolean
 
       java-distribution:
         description: 'Java distribution'
@@ -34,7 +34,7 @@ on:
       cache-npm:
         description: 'Cache NPM'
         default: true
-        type: string
+        type: boolean
 
       war-build-dir:
         description: 'Directory containing the compiled WAR file. This overrides the default which is web/build/libs'
@@ -71,7 +71,7 @@ jobs:
           distribution: ${{ inputs.java-distribution }}
 
       - name: Setup Gradle
-        if: ${{ inputs.build-gradle == 'true' }}
+        if: ${{ inputs.build-gradle }}
         uses: gradle/gradle-build-action@v2
 
       - name: Get Tag Version
@@ -87,7 +87,7 @@ jobs:
           path: ./brightspot
 
       - name: Maven Cache
-        if: ${{ inputs.build-maven == 'true' }}
+        if: ${{ inputs.build-maven }}
         uses: actions/cache@v3
         with:
           path: ~/.m2/repository
@@ -96,7 +96,7 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Gradle Cache
-        if: ${{ inputs.build-gradle == 'true' }}
+        if: ${{ inputs.build-gradle }}
         uses: actions/cache@v3
         with:
           path: |
@@ -107,7 +107,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: NPM Cache
-        if: ${{ inputs.cache-npm == 'true' }}
+        if: ${{ inputs.cache-npm}}
         uses: actions/cache@v3
         with:
           path: |
@@ -119,12 +119,12 @@ jobs:
             ${{ runner.os }}-npm-
 
       - name: Build with Maven
-        if: ${{ inputs.build-maven == 'true' }}
+        if: ${{ inputs.build-maven }}
         shell: bash
         run: ./brightspot/brightspot/build-maven.sh
 
       - name: Build with Gradle
-        if: ${{ inputs.build-gradle == 'true' }}
+        if: ${{ inputs.build-gradle }}
         shell: bash
         env:
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
@@ -132,7 +132,7 @@ jobs:
         run: ./brightspot/brightspot/build-gradle.sh
 
       - name: Store Gradle Build
-        if: ${{ inputs.build-gradle == 'true' }}
+        if: ${{ inputs.build-gradle }}
         uses: actions/upload-artifact@v3
         with:
             name: brightspot-build
