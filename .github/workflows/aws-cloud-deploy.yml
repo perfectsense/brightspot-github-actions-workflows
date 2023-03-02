@@ -53,13 +53,13 @@ on:
         type: string
 
     secrets:
+      CLOUD_AWS_ACCOUNT_ID:
+        required: false
       CLOUD_AWS_ACCESS_KEY_ID:
         required: false
       CLOUD_AWS_SECRET_ACCESS_KEY:
         required: false
       CLOUD_AWS_SESSION_TOKEN:
-        required: false
-      CLOUD_AWS_PROJECT_ID:
         required: false
       PROJECT_AWS_ACCOUNT_ID:
         required: false
@@ -117,7 +117,7 @@ jobs:
         uses: docker/login-action@v1
         if: ${{ inputs.deploy-container }}
         with:
-            registry: ${{ secrets.CLOUD_AWS_PROJECT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+            registry: ${{ secrets.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
 
       - name: Build Container
