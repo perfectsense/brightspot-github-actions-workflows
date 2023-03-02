@@ -173,7 +173,7 @@ jobs:
              REPOSITORY="$PROJECT/$PROJECT"
           fi
 
-          REGISTRY="${{ inputs.project-aws-account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          REGISTRY="${{ secrets.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
 
