@@ -136,6 +136,6 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
             name: brightspot-build
-            path: ${ inputs.war-build-dir }
+            path: ${{ inputs.war-build-dir }}
 
 
