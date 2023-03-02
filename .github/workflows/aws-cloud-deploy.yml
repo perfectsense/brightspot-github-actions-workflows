@@ -50,6 +50,12 @@ on:
         default: true
         type: boolean
 
+      node-version:
+        description: 'Node version'
+        required: false
+        default: '16.11.0'
+        type: string
+
       war-build-dir:
         description: 'Directory containing the compiled WAR file. This overrides the default which is web/build/libs'
         required: false
@@ -74,6 +80,11 @@ jobs:
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
     steps:
       - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+            node-version: ${{ inputs.node-version }}
 
       - name: Get Tag Version
         shell: bash
