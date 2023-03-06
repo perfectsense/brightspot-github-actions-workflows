@@ -122,20 +122,20 @@ jobs:
 
       - name: ECR 
         run: | 
-          echo "Project ECR - ${{ env.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
-          echo "Brightspot Cloud ECR - ${{ env.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
+          echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
 
       - name: Login to project ECR
         uses: docker/login-action@v2
         if: ${{ inputs.deploy-container }}
         with:
-            registry: ${{ env.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+            registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - name: Login to Brightspot Cloud ECR
         uses: docker/login-action@v2
         if: ${{ inputs.deploy-container }}
         with:
-            registry: ${{ env.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+            registry: ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
 
       - name: Build Container
@@ -174,7 +174,7 @@ jobs:
              REPOSITORY="$PROJECT/$PROJECT"
           fi
 
-          REGISTRY="${{ env.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
 
