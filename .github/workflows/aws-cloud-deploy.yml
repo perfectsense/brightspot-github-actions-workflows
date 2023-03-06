@@ -59,15 +59,11 @@ on:
         type: string
 
     secrets:
-      CLOUD_AWS_ACCOUNT_ID:
-        required: false
       CLOUD_AWS_ACCESS_KEY_ID:
         required: false
       CLOUD_AWS_SECRET_ACCESS_KEY:
         required: false
       CLOUD_AWS_SESSION_TOKEN:
-        required: false
-      PROJECT_AWS_ACCOUNT_ID:
         required: false
 
 jobs:
@@ -128,13 +124,13 @@ jobs:
         uses: docker/login-action@v2
         if: ${{ inputs.deploy-container }}
         with:
-            registry: ${{ secrets.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+            registry: ${{ env.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - name: Login to Brightspot Cloud ECR
         uses: docker/login-action@v2
         if: ${{ inputs.deploy-container }}
         with:
-            registry: ${{ secrets.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+            registry: ${{ env.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
 
       - name: Build Container
@@ -173,7 +169,7 @@ jobs:
              REPOSITORY="$PROJECT/$PROJECT"
           fi
 
-          REGISTRY="${{ secrets.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          REGISTRY="${{ env.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
 
