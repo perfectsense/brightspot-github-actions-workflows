@@ -120,6 +120,11 @@ jobs:
           aws-session-token: ${{ secrets.CLOUD_AWS_SESSION_TOKEN}}
           aws-region: ${{ inputs.region }}
 
+      - name: ECR 
+        run: | 
+          echo "Project ECR - ${{ env.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
+          echo "Brightspot Cloud ECR - ${{ env.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+
       - name: Login to project ECR
         uses: docker/login-action@v2
         if: ${{ inputs.deploy-container }}
