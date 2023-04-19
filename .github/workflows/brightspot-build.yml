@@ -13,6 +13,11 @@ on:
         default: true
         type: boolean
 
+      gradle-params:
+        description: 'Extra parameters to pass to Gradle command'
+        required: false
+        type: string
+
       java-distribution:
         description: 'Java distribution'
         required: false
@@ -129,6 +134,7 @@ jobs:
         env:
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
           GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+          GRADLE_PARAMS: ${{ inputs.gradle-params }}
         run: ./brightspot/brightspot/build-gradle.sh
 
       - name: Store Gradle Build
