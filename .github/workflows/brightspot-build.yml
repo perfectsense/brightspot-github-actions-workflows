@@ -137,8 +137,8 @@ jobs:
           GRADLE_PARAMS: ${{ inputs.gradle-params }}
         run: ./brightspot/brightspot/build-gradle.sh
 
-      - name: Store Gradle Build
-        if: ${{ inputs.build-gradle }}
+      - name: Store Build
+        if: ${{ inputs.build-gradle || inputs.build-maven }}
         uses: actions/upload-artifact@v3
         with:
             name: brightspot-build
