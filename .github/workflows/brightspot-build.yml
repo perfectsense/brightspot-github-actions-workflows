@@ -137,6 +137,12 @@ jobs:
           GRADLE_PARAMS: ${{ inputs.gradle-params }}
         run: ./brightspot/brightspot/build-gradle.sh
 
+      - name: Publish JUnit test reports
+        uses: mikepenz/action-junit-report@v2
+        if: ${{ inputs.build-gradle }} && ( success() || failure() )
+        with:
+          report_paths: '**/build/test-results/test/TEST-*.xml'
+
       - name: Store Build
         if: ${{ inputs.build-gradle || inputs.build-maven }}
         uses: actions/upload-artifact@v3
