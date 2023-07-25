@@ -93,6 +93,12 @@ jobs:
           java-version: ${{ inputs.java-version }}
           distribution: ${{ inputs.java-distribution }}
 
+      - uses: actions/checkout@v3
+        with:
+          repository: perfectsense/brightspot-github-actions-workflows
+          ref: v1
+          path: ./brightspot
+
       - name: Get Tag Version
         shell: bash
         run: |
