@@ -108,9 +108,9 @@ jobs:
       - name: Deploy to S3
         if: ${{ inputs.deploy-s3 }}
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUD_AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.CLOUD_AWS_SESSION_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ${{ inputs.region }}
           DEPLOY_BUCKET: ${{ inputs.deploy-bucket }}
           DEPLOY_BUCKET_PREFIX: ${{ inputs.deploy-bucket-prefix }}
