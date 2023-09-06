@@ -149,5 +149,6 @@ jobs:
         with:
             name: brightspot-build
             path: ${{ inputs.war-build-dir }}
+            retention-days: 2
 
 
