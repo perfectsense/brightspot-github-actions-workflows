@@ -191,3 +191,21 @@ jobs:
           echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
 
+      - uses: actions/download-artifact@v3
+        with:
+          name: brightspot-version
+          path: brightspot-version
+
+      - name: Configure AWS Credentials for Brightspot Version SQS send
+        uses: aws-actions/configure-aws-credentials@v2
+        if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
+        with:
+          aws-access-key-id: ${{ TODO }}
+          aws-secret-access-key: ${{ TODO }}
+          aws-session-token: ${{ TODO}}
+          aws-region: ${{ TODO }}
+
+      - name: Upload Brightspot version
+        if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
+        run: ./brightspot/analysis/send-sqs.sh brightspot-version/brightspot-version.txt
+        shell: bash
