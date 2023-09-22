@@ -186,7 +186,7 @@ jobs:
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
 
-          docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile .
+          docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
 
           echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
@@ -207,5 +207,5 @@ jobs:
 
       - name: Upload Brightspot version
         if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
-        run: ./brightspot/analysis/send-sqs.sh brightspot-version/brightspot-version.txt
+        run: ./brightspot/analysis/send-sqs.sh brightspot-version/brightspot-version.txt docker-metadata.json
         shell: bash
