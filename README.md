@@ -42,6 +42,7 @@ on:
 jobs:
   build-brightspot:
     uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v1
+    secrets: inherit
 
   aws-cloud-deploy:
     needs: build-brightspot
