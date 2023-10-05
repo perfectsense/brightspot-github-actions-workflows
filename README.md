@@ -24,9 +24,18 @@ builds/exampleco/pull-request/15/exampleco-1.0-SNAPSHOT.zip
 ```
 
 ## Usage
+
+Variables used below:
+`${_DEPLOY_BUCKET}`: S3 bucket to deploy to
+`${_DEPLOY_BUCKET_PREFIX}`: Directory prefix within the S3 bucket
+`${_PROJECT}`: Ops Desk short name for the project
+`${_REGION}`: AWS region the project is deployed in
+
+### Brightspot Cloud projects
 ```
 name: Build and Deploy
 
+# this should match whatever the project wants to build
 on:
   push:
     branches:
@@ -43,6 +52,9 @@ jobs:
   build-brightspot:
     uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v1
     secrets: inherit
+    with:
+      java-version: '8'  # needed only for Java 8 projects; default is '11'
+      war-build-dir: site/build/libs  # needed only if project has site/ directory rather than web/
 
   aws-cloud-deploy:
     needs: build-brightspot
@@ -52,4 +64,84 @@ jobs:
       project: ${_PROJECT}
       repository: ${_PROJECT}/${_PROJECT}
       region: ${_REGION}
+```
+
+### Non-cloud projects
+```
+name: Build and Deploy
+
+# this should match whatever the project wants to build
+on:
+  push:
+    branches:
+      - develop
+      - release/*
+    tags: v*
+
+  pull_request:
+    branches:
+      - develop
+      - release/*
+
+jobs:
+  build-brightspot:
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v1
+    secrets: inherit
+    with:
+      java-version: '8'  # needed only for Java 8 projects; default is '11'
+      war-build-dir: site/build/libs  # needed only if project has site/ directory rather than web/
+
+  aws-cloud-deploy:
+    needs: build-brightspot
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v1
+    secrets: inherit
+    with:
+      region: ${_REGION}
+      deploy-container: false
+      deploy-s3: true
+      deploy-bucket: ${_DEPLOY_BUCKET}
+      deploy-bucket-prefix: ${_DEPLOY_BUCKET_PREFIX}  # as needed (check with Ops if unsure)
+```
+
+
+### Projects migrating to Brightspot Cloud
+
+Once the cloud migration is complete, the workflow should be updated to match the Brightspot Cloud configuration above.
+
+```
+name: Build and Deploy
+
+# this should match whatever the project wants to build
+on:
+  push:
+    branches:
+      - develop
+      - release/*
+    tags: v*
+
+  pull_request:
+    branches:
+      - develop
+      - release/*
+
+jobs:
+  build-brightspot:
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v1
+    secrets: inherit
+    with:
+      java-version: '8'  # needed only for Java 8 projects; default is '11'
+      war-build-dir: site/build/libs  # needed only if project has site/ directory rather than web/
+
+  aws-cloud-deploy:
+    needs: build-brightspot
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v1
+    secrets: inherit
+    with:
+      project: ${_PROJECT}
+      repository: ${_PROJECT}/${_PROJECT}
+      region: ${_REGION}
+      deploy-container: true
+      deploy-s3: true
+      deploy-bucket: ${_DEPLOY_BUCKET}
+      deploy-bucket-prefix: ${_DEPLOY_BUCKET_PREFIX}  # as needed (check with Ops if unsure)
 ```
