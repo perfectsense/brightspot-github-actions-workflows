@@ -100,7 +100,7 @@ jobs:
       deploy-container: false
       deploy-s3: true
       deploy-bucket: ${_DEPLOY_BUCKET}
-      deploy-bucket-prefix: ${_DEPLOY_BUCKET_PREFIX}  # needed only for multi-tenant projects?
+      deploy-bucket-prefix: ${_DEPLOY_BUCKET_PREFIX}  # as needed (check with Ops if unsure)
 ```
 
 
@@ -143,5 +143,5 @@ jobs:
       deploy-container: true
       deploy-s3: true
       deploy-bucket: ${_DEPLOY_BUCKET}
-      deploy-bucket-prefix: ${_DEPLOY_BUCKET_PREFIX}  # needed only for multi-tenant projects?
+      deploy-bucket-prefix: ${_DEPLOY_BUCKET_PREFIX}  # as needed (check with Ops if unsure)
 ```
