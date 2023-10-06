@@ -200,10 +200,10 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v2
         if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
         with:
-          aws-access-key-id: ${{ TODO }}
-          aws-secret-access-key: ${{ TODO }}
-          aws-session-token: ${{ TODO}}
-          aws-region: ${{ TODO }}
+          aws-access-key-id: ${{ secrets.BSP_VERSION_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BSP_VERSION_AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.BSP_VERSION_AWS_SESSION_TOKEN}}
+          aws-region: ${{ us-east-1 }}
 
       - name: Upload Brightspot version
         if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
