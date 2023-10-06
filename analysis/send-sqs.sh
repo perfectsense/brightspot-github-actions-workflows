@@ -17,6 +17,6 @@ json="$(jq -cn \
   '$ARGS.named')"
 
 aws sqs send-message \
-  --queue-url 'TODO' \
+  --queue-url 'https://sqs.us-east-1.amazonaws.com/242040583208/example-bsp-version-queue.fifo' \
   --message-body "$json"
 
