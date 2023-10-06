@@ -208,5 +208,5 @@ jobs:
 
       - name: Upload Brightspot version
         if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
-        run: ./brightspot/analysis/send-sqs.sh brightspot-version/brightspot-version.txt docker-metadata.json
+        run: ./brightspot/analysis/send-sqs.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json
         shell: bash
