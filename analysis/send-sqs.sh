@@ -18,5 +18,6 @@ json="$(jq -cn \
 
 aws sqs send-message \
   --queue-url 'https://sqs.us-east-1.amazonaws.com/242040583208/example-bsp-version-queue.fifo' \
-  --message-body "$json"
+  --message-body "$json" \
+  --message-group-id 'brightspot-github-actions-workflows@v1'
 
