@@ -40,24 +40,6 @@ on:
         default: true
         type: boolean
 
-      java-distribution:
-        description: 'Java distribution'
-        required: false
-        default: 'adopt'
-        type: string
-
-      java-version:
-        description: 'Java version'
-        required: false
-        default: '11'
-        type: string
-
-      node-version:
-        description: 'Node version'
-        required: false
-        default: '16.11.0'
-        type: string
-
     secrets:
       CLOUD_AWS_ACCESS_KEY_ID:
         required: false
@@ -81,17 +63,6 @@ jobs:
         with:
           name: brightspot-build
           path: brightspot-build
-
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-            node-version: ${{ inputs.node-version }}
-
-      - name: Set up JDK
-        uses: actions/setup-java@v3
-        with:
-          java-version: ${{ inputs.java-version }}
-          distribution: ${{ inputs.java-distribution }}
 
       - uses: actions/checkout@v3
         with:
