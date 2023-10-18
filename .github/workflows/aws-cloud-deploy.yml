@@ -197,15 +197,6 @@ jobs:
           name: brightspot-version
           path: brightspot-version
 
-      - name: Configure AWS Credentials for Brightspot Version SQS send
-        uses: aws-actions/configure-aws-credentials@v2
-        if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
-        with:
-          aws-access-key-id: ${{ secrets.BSP_VERSION_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.BSP_VERSION_AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.BSP_VERSION_AWS_SESSION_TOKEN}}
-          aws-region: us-east-1
-
       - name: Upload Brightspot version
         if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
         run: ./brightspot/analysis/send-sqs.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
