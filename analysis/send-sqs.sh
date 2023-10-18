@@ -7,6 +7,8 @@ digest="$(jq -r '."containerimage.digest"' "$2")"
 repo="$GITHUB_REPOSITORY"
 build="${GITHUB_REF##*/}"
 commit="$GITHUB_SHA"
+opsdesk_api_client_id="$3"
+opsdesk_api_secret="$4"
 
 json="$(jq -cn \
   --arg repository "https://github.com/$repo" \
@@ -16,9 +18,11 @@ json="$(jq -cn \
   --arg brightspotVersion "$bsp_version" \
   '$ARGS.named')"
 
-aws sqs send-message \
-  --queue-url 'https://sqs.us-east-1.amazonaws.com/242040583208/example-bsp-version-queue.fifo' \
-  --message-body "$json" \
-  --message-deduplication-id "${GITHUB_REPOSITORY#*/}--$GITHUB_RUN_ID" \
-  --message-group-id 'brightspot-github-actions-workflows@v1'
-
+curl -i \
+  -X POST \
+  --max-time 10 \
+  -H "Content-Type: application/json" \
+  -H "X-Client-Id: $opsdesk_api_client_id" \
+  -H "X-Client-Secret: $opsdesk_api_secret" \
+  -d "$json" \
+  http://beam-enterprise.opsdesk.space/g/bsp-version/update
