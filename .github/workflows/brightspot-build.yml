@@ -56,7 +56,7 @@ on:
 jobs:
   build:
     name: "Build"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
