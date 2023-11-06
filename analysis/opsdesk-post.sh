@@ -25,4 +25,4 @@ curl -i \
   -H "X-Client-Id: $opsdesk_api_client_id" \
   -H "X-Client-Secret: $opsdesk_api_secret" \
   -d "$json" \
-  https://beam-enterprise.qa2.bsp-opsdesk-lower.psdops.com/g/bsp-version/update
+  https://beam-enterprise.opsdesk.cloud/g/bsp-version/update
