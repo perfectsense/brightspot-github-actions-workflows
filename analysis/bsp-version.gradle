@@ -1,0 +1,16 @@
+projectsLoaded {
+    rootProject.tasks.create('brightspotVersion', {
+        doFirst {
+            project.subprojects
+                .grep { it.plugins.hasPlugin('war') }
+                .grep { it.tasks.findByName('generateViewClasses') == null } // exclude frontend project which sometimes has war plugin
+                .each {
+                    it.configurations.runtimeClasspath
+                        .resolvedConfiguration
+                        .firstLevelModuleDependencies
+                        .grep { it.module.id.group == 'com.psddev' && it.module.id.name == 'brightspot-bom' }
+                        .each { println it.module.id.version }
+                }
+        }
+    })
+}

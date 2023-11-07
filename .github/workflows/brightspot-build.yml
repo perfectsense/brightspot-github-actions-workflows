@@ -151,4 +151,16 @@ jobs:
             path: ${{ inputs.war-build-dir }}
             retention-days: 2
 
+      - name: Find Brightspot Version
+        if: ${{ inputs.build-gradle || inputs.build-maven }}
+        run: ./brightspot/analysis/brightspot-version.sh > brightspot-version.txt
+        shell: bash
+
+      - name: Store Brightspot Version
+        if: ${{ inputs.build-gradle || inputs.build-maven }}
+        uses: actions/upload-artifact@v3
+        with:
+            name: brightspot-version
+            path: brightspot-version.txt
+            retention-days: 2
 

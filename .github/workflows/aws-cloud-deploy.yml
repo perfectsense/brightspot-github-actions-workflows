@@ -157,8 +157,17 @@ jobs:
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
 
-          docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile .
+          docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
 
           echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
 
+      - uses: actions/download-artifact@v3
+        with:
+          name: brightspot-version
+          path: brightspot-version
+
+      - name: Upload Brightspot version
+        if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
+        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
+        shell: bash
