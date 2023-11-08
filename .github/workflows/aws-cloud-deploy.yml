@@ -168,6 +168,6 @@ jobs:
           path: brightspot-version
 
       - name: Upload Brightspot version
-        if: ${{ inputs.deploy-container || inputs.deploy-s3 }}
+        if: ${{ inputs.deploy-container }}
         run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
         shell: bash
