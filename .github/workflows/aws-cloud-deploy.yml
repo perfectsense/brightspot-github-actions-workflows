@@ -40,6 +40,11 @@ on:
         default: true
         type: boolean
 
+      runs-on:
+        description: Platform to execute on
+        type: string
+        default: ubuntu-20.04
+
     secrets:
       CLOUD_AWS_ACCESS_KEY_ID:
         required: false
@@ -51,7 +56,7 @@ on:
 jobs:
   build:
     name: "AWS Cloud Deploy"
-    runs-on: ubuntu-20.04
+    runs-on: ${{ inputs.runs-on }}
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
@@ -98,7 +103,7 @@ jobs:
           aws-session-token: ${{ secrets.CLOUD_AWS_SESSION_TOKEN}}
           aws-region: ${{ inputs.region }}
 
-      - name: ECR 
+      - name: ECR
         if: ${{ inputs.deploy-container }}
         run: | 
           echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
