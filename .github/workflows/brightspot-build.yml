@@ -47,6 +47,11 @@ on:
         default: 'web/build/libs'
         type: string
 
+      runs-on:
+        description: Platform to execute on
+        type: string
+        default: ubuntu-20.04
+
     secrets:
       GRADLE_CACHE_USERNAME:
         required: false
@@ -56,7 +61,7 @@ on:
 jobs:
   build:
     name: "Build"
-    runs-on: ubuntu-20.04
+    runs-on: ${{ inputs.runs-on }}
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
