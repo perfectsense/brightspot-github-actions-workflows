@@ -103,7 +103,7 @@ jobs:
           aws-session-token: ${{ secrets.CLOUD_AWS_SESSION_TOKEN}}
           aws-region: ${{ inputs.region }}
 
-      - name: ECR 
+      - name: ECR
         if: ${{ inputs.deploy-container }}
         run: | 
           echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
