@@ -9,6 +9,8 @@ find_bsp_version_gradle() {
   ./gradlew --init-script "$script_dir/bsp-version.gradle" --quiet brightspotVersion \
     | grep -v "${GITHUB_REPOSITORY##*/}" \
     | grep -v 'Build finished' \
+    | grep -v 'buildFinished' \
+    | grep -vE '^\s*$' \
     || echo ''
 }
 
