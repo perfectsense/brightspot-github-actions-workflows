@@ -9,7 +9,7 @@ projectsLoaded {
                         .resolvedConfiguration
                         .firstLevelModuleDependencies
                         .grep { it.module.id.group == 'com.psddev' && it.module.id.name == 'brightspot-bom' }
-                        .each { println it.module.id.version }
+                        .each { println (it.module.id.version + '\n') } // append extra newline to force extraneous Gradle output to a separate line for filtering out later
                 }
         }
     })
