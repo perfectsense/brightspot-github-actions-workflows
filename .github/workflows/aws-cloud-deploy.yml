@@ -162,7 +162,7 @@ jobs:
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
 
-          docker buildx build --push --build-arg WAR_ARTIFACT=web.war --build-arg AWS_REGION=${{ inputs.region }} -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
+          docker buildx build --push --build-arg WAR_ARTIFACT=web.war AWS_REGION=${{ inputs.region }} -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
 
           echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
