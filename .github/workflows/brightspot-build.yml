@@ -50,7 +50,7 @@ on:
       runs-on:
         description: Platform to execute on
         type: string
-        default: ubuntu-20.04
+        default: ubuntu-20.04-4core
 
     secrets:
       GRADLE_CACHE_USERNAME:
