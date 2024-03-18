@@ -57,6 +57,7 @@ jobs:
   build:
     name: "AWS Cloud Deploy"
     runs-on: ${{ inputs.runs-on }}
+    if: github.actor!= 'dependabot[bot]'   # ignore dependabot
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
