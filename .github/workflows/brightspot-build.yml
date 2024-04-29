@@ -18,6 +18,12 @@ on:
         required: false
         type: string
 
+      fetch-depth:
+        description: 'Number of commits to fetch when checking out the repo to build. 0 indicates all history for all branches and tags'
+        required: false
+        default: '1'
+        type: string
+
       java-distribution:
         description: 'Java distribution'
         required: false
@@ -68,6 +74,8 @@ jobs:
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
 
       - name: Setup Node
         uses: actions/setup-node@v3
