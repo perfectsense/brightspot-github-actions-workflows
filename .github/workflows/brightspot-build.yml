@@ -150,7 +150,7 @@ jobs:
 
       - name: Store Build
         if: ${{ inputs.build-gradle || inputs.build-maven }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
             name: brightspot-build
             path: ${{ inputs.war-build-dir }}
@@ -163,7 +163,7 @@ jobs:
 
       - name: Store Brightspot Version
         if: ${{ inputs.build-gradle || inputs.build-maven }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
             name: brightspot-version
             path: brightspot-version.txt
