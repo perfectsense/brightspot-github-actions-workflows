@@ -111,13 +111,13 @@ jobs:
           echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
 
       - name: Login to project ECR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         if: ${{ inputs.deploy-container }}
         with:
             registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - name: Login to Brightspot Cloud ECR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         if: ${{ inputs.deploy-container }}
         with:
             registry: ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
