@@ -63,14 +63,14 @@ jobs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: brightspot-build
           path: brightspot-build
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: perfectsense/brightspot-github-actions-workflows
           ref: v1
@@ -96,7 +96,7 @@ jobs:
         run: ./brightspot/aws/aws-s3-deploy.sh
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         if: ${{ inputs.deploy-container }}
         with:
           aws-access-key-id: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
@@ -111,13 +111,13 @@ jobs:
           echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
 
       - name: Login to project ECR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         if: ${{ inputs.deploy-container }}
         with:
             registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - name: Login to Brightspot Cloud ECR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         if: ${{ inputs.deploy-container }}
         with:
             registry: ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
@@ -168,7 +168,7 @@ jobs:
           echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: brightspot-version
           path: brightspot-version
