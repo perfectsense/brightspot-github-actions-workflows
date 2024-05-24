@@ -48,6 +48,11 @@ on:
       - develop
       - release/*
 
+# (optional) cancel an existing build if new changes have been pushed to same PR or branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-brightspot:
     uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v1
