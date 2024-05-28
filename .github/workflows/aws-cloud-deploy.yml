@@ -60,6 +60,7 @@ jobs:
     env:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
       cloud_aws_access_secret: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+      opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
@@ -177,5 +178,5 @@ jobs:
 
       - name: Upload Brightspot version
         if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
-        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
+        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json ${{ env.opsdesk_api_client_id }} ${{ secrets.OPSDESK_API_SECRET }}
         shell: bash
