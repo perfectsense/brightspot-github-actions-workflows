@@ -57,7 +57,7 @@ jobs:
   build:
     name: "AWS Cloud Deploy"
     runs-on: ${{ inputs.runs-on }}
-    if: github.actor!= 'dependabot[bot]'   # ignore dependabot
+    if: ${{ secrets.AWS_ACCESS_KEY_ID || secrets.CLOUD_AWS_ACCESS_KEY_ID }}  # ignore deploys with no keys
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
