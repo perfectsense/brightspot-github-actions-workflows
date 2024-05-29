@@ -144,7 +144,7 @@ jobs:
 
       - name: Publish JUnit test reports
         uses: mikepenz/action-junit-report@v3
-        if: ${{ inputs.build-gradle }} && ( success() || failure() )
+        if: ${{ inputs.build-gradle && !cancelled() }}
         with:
           report_paths: '**/build/test-results/test/TEST-*.xml'
 
