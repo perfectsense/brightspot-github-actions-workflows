@@ -1,0 +1,150 @@
+name: 'Brightspot GCP Deploy'
+
+on:
+  workflow_call:
+    inputs:
+      region:
+
+      project:
+        description: 'Shortname for project'
+        required: true
+        type: string
+        
+      registry:
+        description: 'GCP registry to push the build to'
+        required: true
+
+      repository:
+        description: 'Repository name. This overrides the default which is ${project}/${project}'
+        required: false
+        type: string
+
+      docker-image-name:
+        description: 'The docker image name to be created for this build. This overrides the default which is ${repository}'
+        required: false
+        
+      gcloud-version:
+        description: "The version of gcloud to be installed. Default is 'latest'. Can be set to value by specying the version like '= 417.0.1' for exact match or '>= 417.0.1' for anything above this version match"
+        required: false
+        default: 'latest'
+        
+      runs-on:
+        description: Platform to execute on
+        type: string
+        default: ubuntu-20.04-4core
+
+    secrets:
+      GCP_GCR_SECRET_KEY:
+        required: true
+
+jobs:
+  build:
+    name: "GCP Cloud Deploy"
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
+    # Map the job outputs to step outputs
+    outputs:
+      container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
+      container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: brightspot-build
+          path: brightspot-build
+
+      - uses: actions/checkout@v4
+        with:
+          repository: perfectsense/brightspot-github-actions-workflows
+          ref: v2
+          path: ./brightspot
+
+      - name: Get Tag Version
+        shell: bash
+        run: |
+          echo "GITHUB_ACTIONS_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+
+      - name: Set Up gcloud CLI
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_GCR_SECRET_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: "${{ inputs.gcloud-version }}"
+
+      # Configure docker to use the gcloud command-line tool as a credential helper
+      - name: Configure docker
+        shell: bash
+        run: |
+          # Set up docker to authenticate
+          # via gcloud command-line tool.
+          gcloud auth configure-docker ${{ inputs.registry }}
+    
+      - name: Docker test
+        shell: bash
+        run: |
+          gcloud artifacts docker images list ${{ inputs.registry }}/${{ inputs.project }}/${{ inputs.repository }}
+
+      - name: Build Container
+        id: build-container
+        shell: bash
+        run: |
+          version=""
+          build=""
+
+          echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
+          echo "GITHUB_ACTIONS_PULL_REQUEST ${GITHUB_ACTIONS_PULL_REQUEST}"
+
+          if [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
+              version="pullrequest-$GITHUB_ACTIONS_PULL_REQUEST"
+              build=pullrequest-$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER
+          elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
+              echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
+              version=release-${GITHUB_ACTIONS_TAG/v/}
+              build=release-${GITHUB_ACTIONS_TAG/v/}
+          else
+              COMMIT_COUNT=$(git rev-list --count HEAD)
+              COMMIT_SHA=$(git rev-parse --short=6 HEAD)
+              build=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              build+=-build$GITHUB_RUN_NUMBER
+              version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+          fi
+
+          cp brightspot-build/*.war etc/container/web.war
+          cd etc/container
+
+          PROJECT="${{ inputs.project }}"
+          REPOSITORY="${{ inputs.repository }}"
+
+          if [ -z ${REPOSITORY} ]; then
+             REPOSITORY="$PROJECT/$PROJECT"
+          fi
+
+          REGISTRY="${{ inputs.registry }}"
+
+          IMAGE_NAME="${{ inputs.docker-image-name }}"
+          if [ -z ${IMAGE_NAME} ]; then
+            IMAGE_NAME="$REPOSITORY"
+          fi
+          
+          BUILD_TAG="$REGISTRY/$PROJECT/$REPOSITORY/$IMAGE_NAME:$build"
+          VERSION_TAG="$REGISTRY/$PROJECT/$REPOSITORY/$IMAGE_NAME:$version"
+
+          docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
+
+          echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
+          echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: brightspot-version
+          path: brightspot-version
+
+      - name: Upload Brightspot version
+        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
+        shell: bash
