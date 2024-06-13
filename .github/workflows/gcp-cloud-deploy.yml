@@ -3,7 +3,6 @@ name: 'Brightspot GCP Deploy'
 on:
   workflow_call:
     inputs:
-      region:
 
       project:
         description: 'Shortname for project'
