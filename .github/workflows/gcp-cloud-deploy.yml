@@ -12,6 +12,7 @@ on:
       registry:
         description: 'GCP registry to push the build to'
         required: true
+        type: string
 
       repository:
         description: 'Repository name. This overrides the default which is ${project}/${project}'
@@ -21,10 +22,12 @@ on:
       docker-image-name:
         description: 'The docker image name to be created for this build. This overrides the default which is ${repository}'
         required: false
+        type: string
         
       gcloud-version:
         description: "The version of gcloud to be installed. Default is 'latest'. Can be set to value by specying the version like '= 417.0.1' for exact match or '>= 417.0.1' for anything above this version match"
         required: false
+        type: string
         default: 'latest'
         
       runs-on:
