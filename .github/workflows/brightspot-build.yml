@@ -52,7 +52,23 @@ on:
         type: string
         default: ubuntu-20.04-4core
 
+      env1Name:
+        description: Name for environment variable #1 (value is passed via secrets)
+        type: string
+      env2Name:
+        description: Name for environment variable #2 (value is passed via secrets)
+        type: string
+      env3Name:
+        description: Name for environment variable #3 (value is passed via secrets)
+        type: string
+
     secrets:
+      ENV_1_VALUE:
+        required: false
+      ENV_2_VALUE:
+        required: false
+      ENV_3_VALUE:
+        required: false
       GRADLE_CACHE_USERNAME:
         required: false
       GRADLE_CACHE_PASSWORD:
@@ -67,6 +83,18 @@ jobs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
     steps:
+      - name: Set Environment Variables
+        run: |
+          if [ -n "${{ inputs.env1Name }}" ]; then
+            echo "${{ inputs.env1Name }}=${{ secrets.ENV_1_VALUE }}" >> $GITHUB_ENV
+          fi
+          if [ -n "${{ inputs.env2Name }}" ]; then
+            echo "${{ inputs.env2Name }}=${{ secrets.ENV_2_VALUE }}" >> $GITHUB_ENV
+          fi
+          if [ -n "${{ inputs.env3Name }}" ]; then
+            echo "${{ inputs.env3Name }}=${{ secrets.ENV_3_VALUE }}" >> $GITHUB_ENV
+          fi
+
       - uses: actions/checkout@v4
 
       - name: Setup Node
