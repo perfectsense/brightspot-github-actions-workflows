@@ -110,7 +110,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ inputs.build-gradle }}
-        uses: gradle/gradle-build-action@v3
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Get Tag Version
         shell: bash
