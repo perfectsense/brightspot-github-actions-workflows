@@ -97,6 +97,11 @@ jobs:
 
       - uses: actions/checkout@v4
 
+        # must run before gradle/gradle-build-action
+      - name: Validate Gradle wrapper JAR files
+        if: ${{ inputs.build-gradle }}
+        uses: gradle/actions/wrapper-validation@v3
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
