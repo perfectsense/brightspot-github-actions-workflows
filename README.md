@@ -55,7 +55,7 @@ concurrency:
 
 jobs:
   build-brightspot:
-    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v1
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v2
     secrets: inherit
     with:
       java-version: '8'  # needed only for Java 8 projects; default is '11'
@@ -64,7 +64,7 @@ jobs:
 
   aws-cloud-deploy:
     needs: build-brightspot
-    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v1
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v2
     secrets: inherit
     with:
       project: ${_PROJECT}
@@ -92,7 +92,7 @@ on:
 
 jobs:
   build-brightspot:
-    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v1
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v2
     secrets: inherit
     with:
       java-version: '8'  # needed only for Java 8 projects; default is '11'
@@ -101,7 +101,7 @@ jobs:
 
   aws-cloud-deploy:
     needs: build-brightspot
-    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v1
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v2
     secrets: inherit
     with:
       region: ${_REGION}
@@ -135,7 +135,7 @@ on:
 
 jobs:
   build-brightspot:
-    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v1
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v2
     secrets: inherit
     with:
       java-version: '8'  # needed only for Java 8 projects; default is '11'
@@ -144,7 +144,7 @@ jobs:
 
   aws-cloud-deploy:
     needs: build-brightspot
-    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v1
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v2
     secrets: inherit
     with:
       project: ${_PROJECT}
