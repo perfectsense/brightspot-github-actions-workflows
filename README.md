@@ -104,6 +104,7 @@ jobs:
     uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v2
     secrets: inherit
     with:
+      project: ${_PROJECT}
       region: ${_REGION}
       deploy-container: false
       deploy-s3: true
