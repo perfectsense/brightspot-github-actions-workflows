@@ -15,6 +15,8 @@ find_bsp_version_gradle() {
 }
 
 find_bsp_version_maven() {
+  sudo apt-get install -y xsltproc
+
   if [ -f 'pom.xml' ]; then
     xsltproc --stringparam project "${GITHUB_REPOSITORY##*/}" "$script_dir/print-parent-versions.xslt" pom.xml
 
