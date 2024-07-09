@@ -18,6 +18,12 @@ on:
         required: false
         type: string
 
+      gradle-action-cache-disable:
+        description: 'Enable only if not using Gradle Remote Cache'
+        required: false
+        default: true
+        type: boolean
+
       java-distribution:
         description: 'Java distribution'
         required: false
@@ -116,6 +122,8 @@ jobs:
       - name: Setup Gradle
         if: ${{ inputs.build-gradle }}
         uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-disabled: ${{ gradle-action-cache-disable }}
 
       - name: Get Tag Version
         shell: bash
@@ -137,17 +145,6 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-
-      - name: Gradle Cache
-        if: ${{ inputs.build-gradle }}
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
 
       - name: NPM Cache
         if: ${{ inputs.cache-npm}}
