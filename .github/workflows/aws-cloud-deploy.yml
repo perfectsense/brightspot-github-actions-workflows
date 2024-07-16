@@ -341,11 +341,12 @@ jobs:
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.CLOUD_AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.CLOUD_AWS_SESSION_TOKEN}}
+          aws-region: ${{ inputs.region }}
 
       - name: Login to ECR
         uses: docker/login-action@v3
