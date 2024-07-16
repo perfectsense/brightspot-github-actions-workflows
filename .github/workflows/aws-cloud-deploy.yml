@@ -341,7 +341,7 @@ jobs:
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
-        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        if: ${{ env.cloud_aws_access_secret != '' }}
         with:
           aws-access-key-id: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.CLOUD_AWS_SECRET_ACCESS_KEY }}
