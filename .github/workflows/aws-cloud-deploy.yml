@@ -169,7 +169,7 @@ jobs:
 
           REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build-X64"
-          VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
+          VERSION_TAG="$REGISTRY/$REPOSITORY:$version-X64"
 
           docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
 
@@ -283,7 +283,7 @@ jobs:
 
           REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build-ARM64"
-          VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
+          VERSION_TAG="$REGISTRY/$REPOSITORY:$version-ARM64"
 
           docker buildx build --platform=linux/arm64 --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
 
