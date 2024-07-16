@@ -378,8 +378,8 @@ jobs:
       - uses: int128/docker-manifest-create-action@v2
         with:
           tags: |
-            ${{ steps.tag-container.outputs.container-build-tag }}}
+            ${{ steps.tag-container.outputs.container-build-tag }}
           sources: |
-            ${{ steps.tag-container.outputs.container-build-tag }}}-ARM64   
-            ${{ steps.tag-container.outputs.container-build-tag }}}-X64
+            ${{ steps.tag-container.outputs.container-build-tag }}-ARM64   
+            ${{ steps.tag-container.outputs.container-build-tag }}-X64
 
