@@ -298,6 +298,9 @@ jobs:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
       cloud_aws_access_secret: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
       opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
+      github_actions_tag: ${{ GITHUB_ACTIONS_TAG }}
+      github_actions_pull_request: ${{ GITHUB_ACTIONS_PULL_REQUEST }}
+      github_run_number: ${{ GITHUB_RUN_NUMBER }}
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.tag-container.outputs.container-build-tag }}
@@ -315,21 +318,21 @@ jobs:
           version=""
           build=""
 
-          echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
-          echo "GITHUB_ACTIONS_PULL_REQUEST ${GITHUB_ACTIONS_PULL_REQUEST}"
+          echo "GITHUB_ACTIONS_TAG ${env.github_actions_tag}"
+          echo "GITHUB_ACTIONS_PULL_REQUEST ${env.github_actions_pull_request}"
 
-          if [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
+          if [[ ! -z "${env.github_actions_pull_request}" && "${env.github_actions_pull_request}" != "" ]]; then
               version="pullrequest-$GITHUB_ACTIONS_PULL_REQUEST"
-              build=pullrequest-$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER
-          elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
-              echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
-              version=release-${GITHUB_ACTIONS_TAG/v/}
-              build=release-${GITHUB_ACTIONS_TAG/v/}
+              build=pullrequest-${env.github_actions_pull_request-build}${env.github_run_number}
+          elif [[ " ${env.github_actions_tag}" =~ ^v[0-9]+\. ]]; then
+              echo "GITHUB_ACTIONS_TAG ${env.github_actions_tag}"
+              version=release-${env.github_actions_tag/v/}
+              build=release-${env.github_actions_tag/v/}
           else
               COMMIT_COUNT=$(git rev-list --count HEAD)
               COMMIT_SHA=$(git rev-parse --short=6 HEAD)
               build=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
-              build+=-build$GITHUB_RUN_NUMBER
+              build+=-build${github_run_number}
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
