@@ -298,6 +298,9 @@ jobs:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
       cloud_aws_access_secret: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
       opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
+    # Map the job outputs to step outputs
+    outputs:
+      container-build-tag: ${{ steps.tag-container.outputs.container-build-tag }}
     needs: [build-x86-container, build-arm-container]
     strategy:
       matrix:
@@ -306,6 +309,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Get Tag Version
+        id: tag-container
         shell: bash
         run: |
           version=""
@@ -340,7 +344,7 @@ jobs:
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
 
-
+          echo "container-registry=$(echo $REGISTRY)" >> $GITHUB_OUTPUT
           echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
 
@@ -374,8 +378,8 @@ jobs:
       - uses: int128/docker-manifest-create-action@v2
         with:
           tags: |
-            ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ steps.envs.outputs.container-version-tag }}
+            ${{ steps.tag-container.outputs.container-build-tag }}}
           sources: |
-            ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ steps.envs.outputs.container-version-tag }}-ARM64
-            ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ steps.envs.outputs.container-version-tag }}-X64
+            ${{ steps.tag-container.outputs.container-build-tag }}}-ARM64   
+            ${{ steps.tag-container.outputs.container-build-tag }}}-X64
 
