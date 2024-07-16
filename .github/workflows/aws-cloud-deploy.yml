@@ -324,9 +324,6 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
-          cp brightspot-build/*.war etc/container/web.war
-          cd etc/container
-
           PROJECT="${{ inputs.project }}"
           REPOSITORY="${{ inputs.repository }}"
 
