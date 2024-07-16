@@ -297,6 +297,7 @@ jobs:
     strategy:
       matrix:
         jdk_version: [jdk11]
+        deploy-container: ${{ fromJSON(github.event.inputs.deploy-container)}}
     steps:
       - uses: actions/checkout@v4
 
@@ -349,20 +350,20 @@ jobs:
           aws-region: ${{ inputs.region }}
 
       - name: ECR
-        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        if: ${{ matrix.deploy-container && env.cloud_aws_access_secret != '' }}
         run: |
           echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
           echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
 
       - name: Login to project ECR
         uses: docker/login-action@v3
-        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        if: ${{ matrix.deploy-container && env.cloud_aws_access_secret != '' }}
         with:
             registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - name: Login to Brightspot Cloud ECR
         uses: docker/login-action@v3
-        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        if: ${{ matrix.deploy-container && env.cloud_aws_access_secret != '' }}
         with:
             registry: ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
