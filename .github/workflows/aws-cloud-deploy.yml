@@ -358,8 +358,8 @@ jobs:
       - uses: int128/docker-manifest-create-action@v2
         with:
           tags: |
-            ${{ vars.CLOUD_AWS_ACCOUNT_ID }}..dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ teps.envs.outputs.container-version-tag }}
+            ${{ vars.CLOUD_AWS_ACCOUNT_ID }}..dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ steps.envs.outputs.container-version-tag }}
           sources: |
-            ${{ vars.CLOUD_AWS_ACCOUNT_ID }}..dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ teps.envs.outputs.container-version-tag }}-ARM64
-            ${{ vars.CLOUD_AWS_ACCOUNT_ID }}..dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ teps.envs.outputs.container-version-tag }}-X64
+            ${{ vars.CLOUD_AWS_ACCOUNT_ID }}..dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ steps.envs.outputs.container-version-tag }}-ARM64
+            ${{ vars.CLOUD_AWS_ACCOUNT_ID }}..dkr.ecr.${{ inputs.region }}.amazonaws.com:${{ steps.envs.outputs.container-version-tag}}-${{ steps.envs.outputs.container-version-tag }}-X64
 
