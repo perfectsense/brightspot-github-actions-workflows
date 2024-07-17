@@ -75,20 +75,19 @@ jobs:
 
       - name: Get workflow version
         id: workflow-version
-        uses: canonical/get-workflow-version-action@v1
-        with:
-          # Repository where reusable workflow is located
-          repository-name: canonical/data-platform-workflows
-          # Name of reusable workflow
-          file-name: build_charm.yaml
-          # Only required for private repositories
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+        outputs:
+          caller-sha: ${{ steps.workflows-ref.outputs.caller-sha }}
+        steps:
+          - name: Get workflow reference
+            id: workflows-ref
+            run: |
+              sha=$(curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/<owner>/<repo>/actions/runs/${{ github.run_id }} | jq -r '.referenced_workflows[0] | .sha')
+              echo "caller-sha=$sha" >> $GITHUB_OUTPUT
 
-      - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
           repository: perfectsense/brightspot-github-actions-workflows
-          ref: ${{ steps.workflow-version.outputs.sha }}
+          ref: ${{ steps.workflow-version.outputs.caller-sha }}
           path: ./brightspot
 
       - name: Get Tag Version
