@@ -382,6 +382,7 @@ jobs:
             registry: ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - uses: int128/docker-manifest-create-action@v2
+        if: ${{ env.cloud_aws_access_secret != '' }}
         with:
           tags: |
             ${{ steps.tag-container.outputs.container-build-tag }}
