@@ -73,17 +73,11 @@ jobs:
           name: brightspot-build
           path: brightspot-build
 
-      - name: Extract branch name
-          shell: bash
-          run: echo "branch_name=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
-          id: extract_branch
-          outputs:
-            branch_name: ${{ steps.create-branch.outputs.branch_name}}
 
       - uses: actions/checkout@v4
         with:
           repository: perfectsense/brightspot-github-actions-workflows
-          ref: ${{ steps.extract_branch.outputs.branch_name }}
+          ref: ${{ github.head_ref || github.ref_name }}
           path: ./brightspot
 
       - name: Get Tag Version
