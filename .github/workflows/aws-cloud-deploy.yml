@@ -165,7 +165,7 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
-          cp brightspot-build/*.war ${{ inputs.dockerfile-directoryy }}/web.war
+          cp brightspot-build/*.war ${{ inputs.dockerfile-directory }}/web.war
           cd ${{ inputs.dockerfile-directory }}
 
           PROJECT="${{ inputs.project }}"
