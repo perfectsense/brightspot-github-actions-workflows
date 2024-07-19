@@ -44,7 +44,7 @@ on:
         description: 'Directory containing Dockerfile for deploy. Defaults to /etc/container'
         required: false
         type: string
-        default: '/etc/container'
+        default: 'etc/container'
 
       runs-on:
         description: Platform to execute on
@@ -191,5 +191,5 @@ jobs:
 
       - name: Upload Brightspot version
         if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' && env.opsdesk_api_client_id != '' }}
-        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt .${{ inputs.dockerfile-directory }}/docker-metadata.json ${{  secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
+        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./${{ inputs.dockerfile-directory }}/docker-metadata.json ${{  secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
         shell: bash
