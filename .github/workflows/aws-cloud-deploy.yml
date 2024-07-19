@@ -43,8 +43,8 @@ on:
       dockerfile-directory:
         description: "Directory containing Dockerfile for deploy. Defaults to /etc/container"
         required: false
-        default: "/etc/container"
         type: string
+        default: '/etc/container'
 
       runs-on:
         description: Platform to execute on

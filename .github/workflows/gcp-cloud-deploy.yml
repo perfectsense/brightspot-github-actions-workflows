@@ -27,8 +27,8 @@ on:
       dockerfile-directory:
         description: "Directory containing Dockerfile for deploy. Defaults to /etc/container"
         required: false
-        default: "/etc/container"
         type: string
+        default: '/etc/container'
         
       gcloud-version:
         description: "The version of gcloud to be installed. Default is 'latest'. Can be set to value by specying the version like '= 417.0.1' for exact match or '>= 417.0.1' for anything above this version match"
