@@ -23,6 +23,12 @@ on:
         description: 'The docker image name to be created for this build. This overrides the default which is ${repository}'
         required: false
         type: string
+
+      dockerfile-directory:
+        description: "Directory containing Dockerfile for deploy. Defaults to /etc/container"
+        required: false
+        default: "/etc/container"
+        type: string
         
       gcloud-version:
         description: "The version of gcloud to be installed. Default is 'latest'. Can be set to value by specying the version like '= 417.0.1' for exact match or '>= 417.0.1' for anything above this version match"
@@ -124,8 +130,8 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
-          cp brightspot-build/*.war etc/container/web.war
-          cd etc/container
+          cp brightspot-build/*.war ${{ dockerfile-directory }}/web.war
+          cd ${{ dockerfile-directory }}
 
           PROJECT="${{ inputs.project }}"
           REPOSITORY="${{ inputs.repository }}"
@@ -155,5 +161,5 @@ jobs:
           path: brightspot-version
 
       - name: Upload Brightspot version
-        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
+        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt .${{ dockerfile-directory }}/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
         shell: bash
