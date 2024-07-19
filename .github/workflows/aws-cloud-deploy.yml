@@ -165,8 +165,8 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
-          cp brightspot-build/*.war ${{ dockerfile-directoryy }}/web.war
-          cd ${{ dockerfile-directory }}
+          cp brightspot-build/*.war ${{ inputs.dockerfile-directoryy }}/web.war
+          cd ${{ inputs.dockerfile-directory }}
 
           PROJECT="${{ inputs.project }}"
           REPOSITORY="${{ inputs.repository }}"
@@ -191,5 +191,5 @@ jobs:
 
       - name: Upload Brightspot version
         if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' && env.opsdesk_api_client_id != '' }}
-        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt .${{ dockerfile-directory }}/docker-metadata.json ${{  secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
+        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt .${{ inputs.dockerfile-directory }}/docker-metadata.json ${{  secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
         shell: bash

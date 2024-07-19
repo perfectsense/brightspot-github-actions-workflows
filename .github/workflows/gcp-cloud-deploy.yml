@@ -130,8 +130,8 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
-          cp brightspot-build/*.war ${{ dockerfile-directory }}/web.war
-          cd ${{ dockerfile-directory }}
+          cp brightspot-build/*.war ${{ inputs.dockerfile-directory }}/web.war
+          cd ${{ inputs.dockerfile-directory }}
 
           PROJECT="${{ inputs.project }}"
           REPOSITORY="${{ inputs.repository }}"
@@ -161,5 +161,5 @@ jobs:
           path: brightspot-version
 
       - name: Upload Brightspot version
-        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt .${{ dockerfile-directory }}/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
+        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt .${{ inputs.dockerfile-directory }}/docker-metadata.json ${{ secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
         shell: bash
