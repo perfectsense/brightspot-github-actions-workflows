@@ -25,7 +25,7 @@ on:
         type: string
 
       dockerfile-directory:
-        description: 'Directory containing Dockerfile for deploy. Defaults to /etc/container'
+        description: 'Directory containing Dockerfile for deploy. Defaults to etc/container'
         required: false
         type: string
         default: 'etc/container'
