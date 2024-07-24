@@ -5,7 +5,6 @@ on:
     inputs:
       war-artifact-name:
         description: 'Name of GitHub Actions artifact containing the WAR file'
-        required: true
         type: string
         default: 'brightspot-build'
 
