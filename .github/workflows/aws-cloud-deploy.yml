@@ -3,6 +3,12 @@ name: 'Brightspot AWS Deploy'
 on:
   workflow_call:
     inputs:
+      war-artifact-name:
+        description: 'Name of GitHub Actions artifact containing the WAR file'
+        required: true
+        type: string
+        default: 'brightspot-build'
+
       region:
         description: 'Region project is deployed to'
         required: true
@@ -75,7 +81,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: brightspot-build
+          name: ${{ inputs.war-artifact-name }}
           path: brightspot-build
 
       - uses: actions/checkout@v4
@@ -202,7 +208,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: brightspot-build
+          name: ${{ inputs.war-artifact-name }}
           path: brightspot-build
 
       - uses: actions/checkout@v4
