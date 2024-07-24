@@ -8,6 +8,11 @@ on:
         type: string
         default: 'brightspot-build'
 
+      publish-brightspot-version:
+        description: 'Whether to publish the calculated Brightspot version to Ops Desk'
+        type: boolean
+        default: true
+
       region:
         description: 'Region project is deployed to'
         required: true
@@ -182,12 +187,13 @@ jobs:
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
 
       - uses: actions/download-artifact@v4
+        if: ${{ inputs.publish-brightspot-version }}
         with:
           name: brightspot-version
           path: brightspot-version
 
       - name: Upload Brightspot version
-        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' && env.opsdesk_api_client_id != '' }}
+        if: ${{ inputs.publish-brightspot-version && inputs.deploy-container && env.cloud_aws_access_secret != '' && env.opsdesk_api_client_id != '' }}
         run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./etc/container/docker-metadata.json ${{  secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
         shell: bash
 
