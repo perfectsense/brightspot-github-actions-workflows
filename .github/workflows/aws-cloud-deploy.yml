@@ -61,11 +61,21 @@ on:
         default: ubuntu-22.04-arm64-4core
 
     secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
+        required: false
       CLOUD_AWS_ACCESS_KEY_ID:
         required: false
       CLOUD_AWS_SECRET_ACCESS_KEY:
         required: false
       CLOUD_AWS_SESSION_TOKEN:
+        required: false
+      OPSDESK_API_CLIENT_ID:
+        required: false
+      OPSDESK_API_SECRET:
         required: false
 
 jobs:
