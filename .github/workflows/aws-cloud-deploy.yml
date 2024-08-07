@@ -322,6 +322,7 @@ jobs:
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.tag-container.outputs.container-build-tag }}
+      container-version-tag: ${{ steps.tag-container.outputs.container-version-tag }}
     needs: [build-x86-container, build-arm-container]
     strategy:
       matrix:
@@ -407,6 +408,7 @@ jobs:
         with:
           tags: |
             ${{ steps.tag-container.outputs.container-build-tag }}
+            ${{ steps.tag-container.outputs.container-version-tag }}
           sources: |
             ${{ steps.tag-container.outputs.container-build-tag }}-ARM64   
             ${{ steps.tag-container.outputs.container-build-tag }}-X64
