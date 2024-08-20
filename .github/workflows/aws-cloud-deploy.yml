@@ -50,6 +50,12 @@ on:
         default: true
         type: boolean
 
+      dockerfile-directory:
+        description: 'Directory containing Dockerfile for deploy. Defaults to etc/container'
+        required: false
+        type: string
+        default: 'etc/container'
+
       runs-on:
         description: Platform to execute on
         type: string
@@ -90,6 +96,7 @@ jobs:
     outputs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
+      caller-sha: ${{ steps.workflows-version.outputs.caller-sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -98,10 +105,16 @@ jobs:
           name: ${{ inputs.war-artifact-name }}
           path: brightspot-build
 
+      - name: Get workflow reference
+        id: workflow-version
+        run: |
+          sha=$(curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }} | jq -r '.referenced_workflows[] | select(.path|contains("aws-cloud-deploy")) | .sha')
+          echo "caller-sha=$sha" >> $GITHUB_OUTPUT
+
       - uses: actions/checkout@v4
         with:
           repository: perfectsense/brightspot-github-actions-workflows
-          ref: v1
+          ref: ${{ steps.workflow-version.outputs.caller-sha }}
           path: ./brightspot
 
       - name: Get Tag Version
@@ -177,8 +190,8 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
-          cp brightspot-build/*.war etc/container/web.war
-          cd etc/container
+          cp brightspot-build/*.war ${{ inputs.dockerfile-directory }}/web.war
+          cd ${{ inputs.dockerfile-directory }}
 
           PROJECT="${{ inputs.project }}"
           REPOSITORY="${{ inputs.repository }}"
