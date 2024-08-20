@@ -344,7 +344,7 @@ jobs:
 
   build-aws-image-manifest:
     name: "Build Contaner Manifest"
-    if: ${{ inputs.deploy-container && (inputs.build-arm-container || inputs.build-x86-container) }}
+    if: ${{ inputs.deploy-container }}
     runs-on: ubuntu-20.04
     env:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
