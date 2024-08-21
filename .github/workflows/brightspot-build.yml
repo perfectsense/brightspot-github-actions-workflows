@@ -134,6 +134,10 @@ jobs:
         if: ${{ inputs.install-chromium-arm }}
         run: sudo apt-get install -y chromium-browser
 
+      - name: Chromium Cache
+        if: ${{ inputs.install-chromium-arm }}
+        run: dpkg -L chromium-browser
+
       - name: Get Tag Version
         shell: bash
         run: |
