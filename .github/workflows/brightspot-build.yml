@@ -130,22 +130,6 @@ jobs:
         with:
           cache-disabled: ${{ inputs.gradle-action-cache-disable }}
 
-      - name: Chromium Cache
-        if: ${{ inputs.install-chromium-arm }}
-        uses: actions/cache@v4
-        with:
-          path: |
-           /usr/bin/chromium-browser
-           /usr/share/applications/chromium-browser.desktop
-           /usr/share/apport/package-hooks/chromium-browser.py
-           /usr/share/doc/chromium-browser
-           /usr/share/icons/hicolor
-           /usr/share/lintian/overrides/chromium-browser
-           /usr/share/pixmaps/chromium-browser.png
-          key: ${{ runner.os }}-chromium-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-chromium-
-
       - name: Install Chromium for ARM
         if: ${{ inputs.install-chromium-arm }}
         run: sudo apt-get install -y chromium-browser
