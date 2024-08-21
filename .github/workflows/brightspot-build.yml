@@ -136,7 +136,6 @@ jobs:
 
       - name: Chromium Cache
         if: ${{ inputs.install-chromium-arm }}
-        run: dpkg -L chromium-browser
         uses: actions/cache@v4
         with:
           path: /usr/bin/chromium-browser
