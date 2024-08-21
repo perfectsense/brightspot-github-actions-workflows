@@ -3,6 +3,16 @@ name: 'Brightspot AWS Deploy'
 on:
   workflow_call:
     inputs:
+      war-artifact-name:
+        description: 'Name of GitHub Actions artifact containing the WAR file'
+        type: string
+        default: 'brightspot-build'
+
+      publish-brightspot-version:
+        description: 'Whether to publish the calculated Brightspot version to Ops Desk'
+        type: boolean
+        default: true
+
       region:
         description: 'Region project is deployed to'
         required: true
@@ -51,17 +61,32 @@ on:
         type: string
         default: ubuntu-20.04-4core
 
+      runs-on-arm:
+        description: Platform to execute on
+        type: string
+        default: ubuntu-22.04-arm64-4core
+
     secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
+        required: false
       CLOUD_AWS_ACCESS_KEY_ID:
         required: false
       CLOUD_AWS_SECRET_ACCESS_KEY:
         required: false
       CLOUD_AWS_SESSION_TOKEN:
         required: false
+      OPSDESK_API_CLIENT_ID:
+        required: false
+      OPSDESK_API_SECRET:
+        required: false
 
 jobs:
-  build:
-    name: "AWS Cloud Deploy"
+  build-x86-container:
+    name: "Build x86 Contaner"
     runs-on: ${{ inputs.runs-on }}
     env:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -77,7 +102,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: brightspot-build
+          name: ${{ inputs.war-artifact-name }}
           path: brightspot-build
 
       - name: Get workflow reference
@@ -176,8 +201,8 @@ jobs:
           fi
 
           REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
-          BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
-          VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
+          BUILD_TAG="$REGISTRY/$REPOSITORY:$build-X64"
+          VERSION_TAG="$REGISTRY/$REPOSITORY:$version-X64"
 
           docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
 
@@ -185,11 +210,237 @@ jobs:
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
 
       - uses: actions/download-artifact@v4
+        if: ${{ inputs.publish-brightspot-version }}
         with:
           name: brightspot-version
           path: brightspot-version
 
       - name: Upload Brightspot version
-        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' && env.opsdesk_api_client_id != '' }}
+        if: ${{ inputs.publish-brightspot-version && inputs.deploy-container && env.cloud_aws_access_secret != '' && env.opsdesk_api_client_id != '' }}
         run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./${{ inputs.dockerfile-directory }}/docker-metadata.json ${{  secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
         shell: bash
+
+  build-arm-container:
+    name: "Build ARM Contaner"
+    runs-on: ${{ inputs.runs-on-arm }}
+    env:
+      aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      cloud_aws_access_secret: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+      opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
+    # Map the job outputs to step outputs
+    outputs:
+      container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
+      container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
+      caller-sha: ${{ steps.workflows-version.outputs.caller-sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.war-artifact-name }}
+          path: brightspot-build
+
+      - name: Get workflow reference
+        id: workflow-version
+        run: |
+          sha=$(curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }} | jq -r '.referenced_workflows[] | select(.path|contains("aws-cloud-deploy")) | .sha')
+          echo "caller-sha=$sha" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v4
+        with:
+          repository: perfectsense/brightspot-github-actions-workflows
+          ref: ${{ steps.workflow-version.outputs.caller-sha }}
+          path: ./brightspot
+
+      - name: Get Tag Version
+        shell: bash
+        run: |
+          echo "GITHUB_ACTIONS_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        with:
+          aws-access-key-id: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.CLOUD_AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.CLOUD_AWS_SESSION_TOKEN}}
+          aws-region: ${{ inputs.region }}
+
+      - name: ECR
+        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        run: |
+          echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
+          echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+
+      - name: Login to project ECR
+        uses: docker/login-action@v3
+        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        with:
+            registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+
+      - name: Login to Brightspot Cloud ECR
+        uses: docker/login-action@v3
+        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        with:
+            registry: ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+
+
+      - name: Build Container
+        id: build-container
+        if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
+        shell: bash
+        run: |
+          version=""
+          build=""
+
+          echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
+          echo "GITHUB_ACTIONS_PULL_REQUEST ${GITHUB_ACTIONS_PULL_REQUEST}"
+
+          if [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
+              version="pullrequest-$GITHUB_ACTIONS_PULL_REQUEST"
+              build=pullrequest-$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER
+          elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
+              echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
+              version=release-${GITHUB_ACTIONS_TAG/v/}
+              build=release-${GITHUB_ACTIONS_TAG/v/}
+          else
+              COMMIT_COUNT=$(git rev-list --count HEAD)
+              COMMIT_SHA=$(git rev-parse --short=6 HEAD)
+              build=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              build+=-build$GITHUB_RUN_NUMBER
+              version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+          fi
+
+          cp brightspot-build/*.war ${{ inputs.dockerfile-directory }}/web.war
+          cd ${{ inputs.dockerfile-directory }}
+
+          PROJECT="${{ inputs.project }}"
+          REPOSITORY="${{ inputs.repository }}"
+
+          if [ -z ${REPOSITORY} ]; then
+             REPOSITORY="$PROJECT/$PROJECT"
+          fi
+
+          REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          BUILD_TAG="$REGISTRY/$REPOSITORY:$build-ARM64"
+          VERSION_TAG="$REGISTRY/$REPOSITORY:$version-ARM64"
+
+          docker buildx build --platform=linux/arm64 --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
+
+          echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
+          echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
+
+      - uses: actions/download-artifact@v4
+        if: ${{ inputs.publish-brightspot-version }}
+        with:
+          name: brightspot-version
+          path: brightspot-version
+
+      - name: Upload Brightspot version
+        if: ${{ inputs.publish-brightspot-version && inputs.deploy-container && env.cloud_aws_access_secret != '' && env.opsdesk_api_client_id != '' }}
+        run: ./brightspot/analysis/opsdesk-post.sh brightspot-version/brightspot-version.txt ./${{ inputs.dockerfile-directory }}/docker-metadata.json ${{  secrets.OPSDESK_API_CLIENT_ID }} ${{ secrets.OPSDESK_API_SECRET }}
+        shell: bash
+
+  build-aws-image-manifest:
+    name: "Build Contaner Manifest"
+    if: ${{ inputs.deploy-container }}
+    runs-on: ubuntu-20.04
+    env:
+      aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      cloud_aws_access_secret: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+      opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
+    # Map the job outputs to step outputs
+    outputs:
+      container-build-tag: ${{ steps.tag-container.outputs.container-build-tag }}
+      container-version-tag: ${{ steps.tag-container.outputs.container-version-tag }}
+    needs: [build-x86-container, build-arm-container]
+    strategy:
+      matrix:
+        jdk_version: [jdk11]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Tag Version
+        shell: bash
+        run: |
+          echo "GITHUB_ACTIONS_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+
+      - name: Get Container Version
+        id: tag-container
+        shell: bash
+        run: |
+          version=""
+          build=""
+
+          echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
+          echo "GITHUB_ACTIONS_PULL_REQUEST ${GITHUB_ACTIONS_PULL_REQUEST}"
+
+          if [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
+              version="pullrequest-$GITHUB_ACTIONS_PULL_REQUEST"
+              build=pullrequest-$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER
+          elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
+              echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
+              version=release-${GITHUB_ACTIONS_TAG/v/}
+              build=release-${GITHUB_ACTIONS_TAG/v/}
+          else
+              COMMIT_COUNT=$(git rev-list --count HEAD)
+              COMMIT_SHA=$(git rev-parse --short=6 HEAD)
+              build=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              build+=-build$GITHUB_RUN_NUMBER
+              version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+          fi
+
+          PROJECT="${{ inputs.project }}"
+          REPOSITORY="${{ inputs.repository }}"
+
+          if [ -z ${REPOSITORY} ]; then
+             REPOSITORY="$PROJECT/$PROJECT"
+          fi
+
+          REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
+          VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
+
+          echo "container-registry=$(echo $REGISTRY)" >> $GITHUB_OUTPUT
+          echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
+          echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ env.cloud_aws_access_secret != '' }}
+        with:
+          aws-access-key-id: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.CLOUD_AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.CLOUD_AWS_SESSION_TOKEN}}
+          aws-region: ${{ inputs.region }}
+
+      - name: ECR
+        if: ${{ env.cloud_aws_access_secret != '' }}
+        run: |
+          echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
+          echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+
+      - name: Login to project ECR
+        uses: docker/login-action@v3
+        if: ${{ env.cloud_aws_access_secret != '' }}
+        with:
+            registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+
+      - name: Login to Brightspot Cloud ECR
+        uses: docker/login-action@v3
+        if: ${{ env.cloud_aws_access_secret != '' }}
+        with:
+            registry: ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+
+      - uses: int128/docker-manifest-create-action@v2
+        if: ${{ env.cloud_aws_access_secret != '' }}
+        with:
+          tags: |
+            ${{ steps.tag-container.outputs.container-build-tag }}
+            ${{ steps.tag-container.outputs.container-version-tag }}
+          sources: |
+            ${{ steps.tag-container.outputs.container-build-tag }}-ARM64   
+            ${{ steps.tag-container.outputs.container-build-tag }}-X64
+
