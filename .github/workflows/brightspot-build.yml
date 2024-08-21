@@ -47,6 +47,11 @@ on:
         default: true
         type: boolean
 
+      install-chromium-arm:
+        description: 'Install Chromium to support screenshots on ARM'
+        default: false
+        type: boolean
+
       war-build-dir:
         description: 'Directory containing the compiled WAR file. This overrides the default which is web/build/libs'
         required: false
@@ -124,6 +129,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           cache-disabled: ${{ inputs.gradle-action-cache-disable }}
+
+      - name: Install Chromium for ARM
+        if: ${{ inputs.install-chromium-arm }}
+        run: sudo apt-get install -y chromium-browser
 
       - name: Get Tag Version
         shell: bash
