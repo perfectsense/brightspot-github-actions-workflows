@@ -390,7 +390,11 @@ jobs:
           echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
           echo "GITHUB_ACTIONS_PULL_REQUEST ${GITHUB_ACTIONS_PULL_REQUEST}"
 
-          if [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
+          if [[ ! -z "${{ inputs.override-build-name }}" ]]; then
+              echo "Override Build Name ${{ inputs.override-build-name }}"
+              version="${{ inputs.override-build-name }}"
+              build="${{ inputs.override-build-name }}"
+          elif  [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
               version="pullrequest-$GITHUB_ACTIONS_PULL_REQUEST"
               build=pullrequest-$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER
           elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
