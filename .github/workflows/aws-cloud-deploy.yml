@@ -394,11 +394,11 @@ jobs:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
       cloud_aws_access_secret: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
       opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
-      account-id: ${{ steps.project-account.outputs.account-id }}
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.tag-container.outputs.container-build-tag }}
       container-version-tag: ${{ steps.tag-container.outputs.container-version-tag }}
+      account-id: ${{ steps.project-account.outputs.account-id }}
     needs: [build-x86-container, build-arm-container]
     strategy:
       matrix:
