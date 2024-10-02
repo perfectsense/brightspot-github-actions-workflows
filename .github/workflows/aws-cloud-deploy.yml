@@ -23,6 +23,11 @@ on:
         required: true
         type: string
 
+      project-account-id:
+        description: 'Project Account ID, defaults to Github Vars PROJECT_AWS_ACCOUNT_ID'
+        required: false
+        type: string
+
       repository:
         description: 'Repository name. This overrides the default which is ${project}/${project}'
         required: false
@@ -102,6 +107,7 @@ jobs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
       caller-sha: ${{ steps.workflows-version.outputs.caller-sha }}
+      account-id: ${{ steps.project-account.outputs.account-id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -115,6 +121,18 @@ jobs:
         run: |
           sha=$(curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }} | jq -r '.referenced_workflows[] | select(.path|contains("aws-cloud-deploy")) | .sha')
           echo "caller-sha=$sha" >> $GITHUB_OUTPUT
+
+      - name: Project Account ID
+        id: project-account-id
+        shell: bash
+        run: |
+          ACCOUNT_ID=""
+          if [[ ! -z "${{ inputs.project-account-id }}" ]]; then
+            ACCOUNT_ID=${{ inputs.project-account-id }}
+          else
+            ACCOUNT_ID=${{ vars.PROJECT_AWS_ACCOUNT_ID }} }}
+          fi
+          echo "account-id=$(echo $ACCOUNT_ID)" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v4
         with:
@@ -152,15 +170,15 @@ jobs:
 
       - name: ECR
         if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
-        run: | 
-          echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
+        run: |
+          echo "Project ECR - ${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
           echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
 
       - name: Login to project ECR
         uses: docker/login-action@v3
         if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
         with:
-            registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+            registry: ${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - name: Login to Brightspot Cloud ECR
         uses: docker/login-action@v3
@@ -209,7 +227,7 @@ jobs:
              REPOSITORY="$PROJECT/$PROJECT"
           fi
 
-          REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          REGISTRY="${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build-X64"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version-X64"
 
@@ -279,14 +297,14 @@ jobs:
       - name: ECR
         if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
         run: |
-          echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
+          echo "Project ECR - ${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
           echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
 
       - name: Login to project ECR
         uses: docker/login-action@v3
         if: ${{ inputs.deploy-container && env.cloud_aws_access_secret != '' }}
         with:
-            registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+            registry: ${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - name: Login to Brightspot Cloud ECR
         uses: docker/login-action@v3
@@ -335,7 +353,7 @@ jobs:
              REPOSITORY="$PROJECT/$PROJECT"
           fi
 
-          REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          REGISTRY="${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build-ARM64"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version-ARM64"
 
@@ -416,7 +434,7 @@ jobs:
              REPOSITORY="$PROJECT/$PROJECT"
           fi
 
-          REGISTRY="${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
+          REGISTRY="${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
           BUILD_TAG="$REGISTRY/$REPOSITORY:$build"
           VERSION_TAG="$REGISTRY/$REPOSITORY:$version"
 
@@ -436,14 +454,14 @@ jobs:
       - name: ECR
         if: ${{ env.cloud_aws_access_secret != '' }}
         run: |
-          echo "Project ECR - ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
+          echo "Project ECR - ${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com" 
           echo "Brightspot Cloud ECR - ${{ vars.CLOUD_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
 
       - name: Login to project ECR
         uses: docker/login-action@v3
         if: ${{ env.cloud_aws_access_secret != '' }}
         with:
-            registry: ${{ vars.PROJECT_AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
+            registry: ${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com
 
       - name: Login to Brightspot Cloud ECR
         uses: docker/login-action@v3
