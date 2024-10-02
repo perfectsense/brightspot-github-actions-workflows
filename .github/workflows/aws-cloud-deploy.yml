@@ -130,7 +130,7 @@ jobs:
           if [[ ! -z "${{ inputs.project-account-id }}" ]]; then
             ACCOUNT_ID=${{ inputs.project-account-id }}
           else
-            ACCOUNT_ID=${{ vars.PROJECT_AWS_ACCOUNT_ID }} }}
+            ACCOUNT_ID=${{ vars.PROJECT_AWS_ACCOUNT_ID }}
           fi
           echo "account-id=$(echo $ACCOUNT_ID)" >> $GITHUB_OUTPUT
 
