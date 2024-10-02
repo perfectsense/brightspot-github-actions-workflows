@@ -416,7 +416,7 @@ jobs:
           else
             ACCOUNT_ID=${{ vars.PROJECT_AWS_ACCOUNT_ID }}
           fi
-          echo "account-id=$(echo $A
+          echo "account-id=$(echo $ACCOUNT_ID)" >> $GITHUB_OUTPUT
 
       - name: Get Tag Version
         shell: bash
