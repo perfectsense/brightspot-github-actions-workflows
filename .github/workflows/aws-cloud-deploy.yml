@@ -394,6 +394,7 @@ jobs:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
       cloud_aws_access_secret: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
       opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
+      account-id: ${{ steps.project-account.outputs.account-id }}
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.tag-container.outputs.container-build-tag }}
@@ -404,6 +405,18 @@ jobs:
         jdk_version: [jdk11]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Project Account ID
+        id: project-account-id
+        shell: bash
+        run: |
+          ACCOUNT_ID=""
+          if [[ ! -z "${{ inputs.project-account-id }}" ]]; then
+            ACCOUNT_ID=${{ inputs.project-account-id }}
+          else
+            ACCOUNT_ID=${{ vars.PROJECT_AWS_ACCOUNT_ID }}
+          fi
+          echo "account-id=$(echo $A
 
       - name: Get Tag Version
         shell: bash
