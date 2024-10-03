@@ -228,8 +228,8 @@ jobs:
           fi
 
           REGISTRY="${{ steps.project-account-id.outputs.account-id }}.dkr.ecr.${{ inputs.region }}.amazonaws.com"
-          BUILD_TAG="$REGISTRY/$REPOSITORY:$build-X64"
-          VERSION_TAG="$REGISTRY/$REPOSITORY:$version-X64"
+          BUILD_TAG="$REGISTRY/$REPOSITORY:$build-X86"
+          VERSION_TAG="$REGISTRY/$REPOSITORY:$version-X86"
 
           docker buildx build --push --build-arg WAR_ARTIFACT=web.war -t $VERSION_TAG -t $BUILD_TAG -f Dockerfile --metadata-file docker-metadata.json .
 
@@ -503,5 +503,5 @@ jobs:
             ${{ steps.tag-container.outputs.container-version-tag }}
           sources: |
             ${{ steps.tag-container.outputs.container-build-tag }}-ARM64   
-            ${{ steps.tag-container.outputs.container-build-tag }}-X64
+            ${{ steps.tag-container.outputs.container-build-tag }}-X86
 
