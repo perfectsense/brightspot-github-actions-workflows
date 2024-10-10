@@ -27,7 +27,7 @@ on:
       java-distribution:
         description: 'Java distribution'
         required: false
-        default: 'adopt'
+        default: 'temurin'
         type: string
 
       java-version:
