@@ -40,12 +40,12 @@ on:
         type: boolean
 
       deploy-bucket:
-        description: 'S3 bucket to deploy to'
+        description: 'S3 bucket to deploy to; falls back to DEPLOY_BUCKET secret'
         required: false
         type: string
 
       deploy-bucket-prefix:
-        description: 'Directory prefix within the S3 bucket'
+        description: 'Directory prefix within the S3 bucket; falls back to DEPLOY_BUCKET_PREFIX secret'
         required: false
         type: string
 
@@ -82,6 +82,10 @@ on:
       AWS_SECRET_ACCESS_KEY:
         required: false
       AWS_SESSION_TOKEN:
+        required: false
+      DEPLOY_BUCKET:
+        required: false
+      DEPLOY_BUCKET_PREFIX:
         required: false
       CLOUD_AWS_ACCESS_KEY_ID:
         required: false
@@ -153,8 +157,8 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ${{ inputs.region }}
-          DEPLOY_BUCKET: ${{ inputs.deploy-bucket }}
-          DEPLOY_BUCKET_PREFIX: ${{ inputs.deploy-bucket-prefix }}
+          DEPLOY_BUCKET: ${{ inputs.deploy-bucket || secrets.DEPLOY_BUCKET }}
+          DEPLOY_BUCKET_PREFIX: ${{ inputs.deploy-bucket-prefix || secrets.DEPLOY_BUCKET_PREFIX }}
           DEPLOY_SOURCE_DIR: brightspot-build
         shell: bash
         run: ./brightspot/aws/aws-s3-deploy.sh
