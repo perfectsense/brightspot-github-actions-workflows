@@ -106,7 +106,7 @@ jobs:
         # must run before gradle/gradle-build-action
       - name: Validate Gradle wrapper JAR files
         if: ${{ inputs.build-gradle }}
-        uses: gradle/actions/wrapper-validation@v3
+        uses: gradle/actions/wrapper-validation@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -121,7 +121,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ inputs.build-gradle }}
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
         with:
           cache-disabled: ${{ inputs.gradle-action-cache-disable }}
 
