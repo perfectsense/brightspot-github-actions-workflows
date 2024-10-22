@@ -85,12 +85,12 @@ on:
       GRADLE_CACHE_PASSWORD:
         required: false
 
+env: 
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 jobs:
   build:
     name: "Build"
     runs-on: ${{ inputs.runs-on }}
-  env: 
-    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     # Map the job outputs to step outputs
     outputs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
