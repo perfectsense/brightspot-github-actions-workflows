@@ -196,14 +196,6 @@ jobs:
           echo "Creating a new analysis for version ${version}"
           ./gradlew -x test sonarqube -i -Dsonar.projectVersion="${version}"
 
-      - name: SonarCloud Code Analysis
-        if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') != true && github.actor != 'dependabot[bot]' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          JAVA_HOME=$JAVA_HOME_17_X64 
-          ./gradlew  -x test build sonar --info
-
       - name: Store Build
         if: ${{ inputs.build-gradle || inputs.build-maven }}
         uses: actions/upload-artifact@v4
@@ -225,3 +217,10 @@ jobs:
             path: brightspot-version.txt
             retention-days: 2
 
+      - name: SonarCloud Code Analysis
+        if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') != true && github.actor != 'dependabot[bot]' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          JAVA_HOME=$JAVA_HOME_17_X64 
+          ./gradlew  -x test build sonar --info
