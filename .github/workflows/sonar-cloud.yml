@@ -41,7 +41,7 @@ on:
         description: Platform to execute on
         type: string
         default: sonar-ubuntu-22.04-4core
-        
+
       sonar-cloud-enabled:
         description: 'Enable SonarCloud Code Analysis'
         default: true
@@ -106,6 +106,7 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
+          
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
