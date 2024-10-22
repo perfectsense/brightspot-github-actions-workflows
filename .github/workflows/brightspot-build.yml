@@ -47,6 +47,11 @@ on:
         default: true
         type: boolean
 
+      sonar-cloud-enabled:
+        description: 'Enable SonarCloud Code Analysis'
+        default: true
+        type: boolean
+
       war-build-dir:
         description: 'Directory containing the compiled WAR file. This overrides the default which is web/build/libs'
         required: false
@@ -177,6 +182,13 @@ jobs:
         if: ${{ inputs.build-gradle && !cancelled() }}
         with:
           report_paths: '**/build/test-results/test/TEST-*.xml'
+
+      - name: SonarCloud Code Analysis
+        if: ${{ inputs.sonar-cloud-enabled && secrets.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') != true && github.actor != 'dependabot[bot]' }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: JAVA_HOME=$JAVA_HOME_17_X64 ./etc/build.sh sonar --scan
 
       - name: Store Build
         if: ${{ inputs.build-gradle || inputs.build-maven }}
