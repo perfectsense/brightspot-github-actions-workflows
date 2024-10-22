@@ -223,4 +223,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           JAVA_HOME=$JAVA_HOME_17_X64 
-          ./gradlew  -x test build sonar --info
+          ./gradlew  -x test sonar --info
