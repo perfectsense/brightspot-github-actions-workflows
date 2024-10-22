@@ -49,7 +49,7 @@ on:
 
       sonar-cloud-enabled:
         description: 'Enable SonarCloud Code Analysis'
-        default: true
+        default: false
         type: boolean
 
       war-build-dir:
