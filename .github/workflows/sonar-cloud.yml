@@ -106,7 +106,7 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-          
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -135,5 +135,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           JAVA_HOME=$JAVA_HOME_17_X64 
-          ./gradlew -x test sonar --info
+          ./gradlew -x test sonar -i
 
