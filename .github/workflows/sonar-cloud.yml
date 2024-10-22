@@ -40,8 +40,8 @@ on:
       runs-on:
         description: Platform to execute on
         type: string
-        default: ubuntu-20.04-4core
-
+        default: sobanr-ubuntu-22.04-4core-arm
+        
       sonar-cloud-enabled:
         description: 'Enable SonarCloud Code Analysis'
         default: true
