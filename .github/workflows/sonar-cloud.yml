@@ -68,13 +68,13 @@ on:
         required: false
       GRADLE_CACHE_PASSWORD:
         required: false
-env: 
-  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 jobs:
-  build:
+  sonar-cloud:
     name: "Sonar Cloud"
-    if: ${{ env.SONAR_TOKEN != '' }}
+    env: 
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     runs-on: ${{ inputs.runs-on }}
+    if: ${{ env.SONAR_TOKEN != '' }}
     steps:
       - name: Set Environment Variables
         run: |
