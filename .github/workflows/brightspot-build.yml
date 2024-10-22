@@ -183,12 +183,26 @@ jobs:
         with:
           report_paths: '**/build/test-results/test/TEST-*.xml'
 
+      - name: SonarCloud Code Version
+        if: ${{ inputs.sonar-cloud-enabled && secrets.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') && github.actor != 'dependabot[bot]' }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          JAVA_HOME=$JAVA_HOME_17_X64 
+          version=$(git describe --tags --match "v[0-9]*" --abbrev=0 HEAD || echo "0")
+          version=${version/v/}
+          echo "Creating a new analysis for version ${version}"
+          ./gradlew -x test sonarqube -i -Dsonar.projectVersion="${version}"
+
       - name: SonarCloud Code Analysis
         if: ${{ inputs.sonar-cloud-enabled && secrets.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') != true && github.actor != 'dependabot[bot]' }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: JAVA_HOME=$JAVA_HOME_17_X64 ./etc/build.sh sonar --scan
+        run: |
+          JAVA_HOME=$JAVA_HOME_17_X64 
+          ./gradlew  -x test build sonar --info
 
       - name: Store Build
         if: ${{ inputs.build-gradle || inputs.build-maven }}
