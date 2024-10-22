@@ -74,7 +74,6 @@ jobs:
     env: 
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     runs-on: ${{ inputs.runs-on }}
-    if: ${{ env.SONAR_TOKEN != '' }}
     steps:
       - name: Set Environment Variables
         run: |
