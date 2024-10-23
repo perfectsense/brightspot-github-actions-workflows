@@ -198,3 +198,4 @@ jobs:
             name: brightspot-version
             path: brightspot-version.txt
             retention-days: 2
+
