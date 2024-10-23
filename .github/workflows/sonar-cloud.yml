@@ -134,8 +134,8 @@ jobs:
         shell: bash
         run: |
           SONAR_PROJECT=""
-          if [[ ! -z "${{ inputs.sonar-project-key: }}" ]]; then
-            SONAR_PROJECT=${{ inputs.sonar-project-key: }}
+          if [[ ! -z "${{ inputs.sonar-project-key }}" ]]; then
+            SONAR_PROJECT=${{ inputs.sonar-project-key }}
           else
             SONAR_PROJECT=perfectsense_${{ github.event.repository.name }}
           fi
