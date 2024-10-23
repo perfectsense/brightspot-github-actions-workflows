@@ -48,9 +48,21 @@ on:
         type: boolean
 
       sonar-cloud-enabled:
-        description: 'Enable SonarCloud Code Analysis'
+        description: 'Enable SonarCloud Code Analysis during build. Alternatively you can use the sonar-cloud.yml workflow.'
         default: false
         type: boolean
+
+      sonar-organization:
+        type: string
+        default: "perfectsense"
+
+      sonar-host-url:
+        type: string
+        default: "https://sonarcloud.io"
+
+      sonar-project-key:
+        type: string
+        required: false
 
       war-build-dir:
         description: 'Directory containing the compiled WAR file. This overrides the default which is web/build/libs'
@@ -215,7 +227,7 @@ jobs:
           version=$(git describe --tags --match "v[0-9]*" --abbrev=0 HEAD || echo "0")
           version=${version/v/}
           echo "Creating a new analysis for version ${version}"
-          ./gradlew -x test sonar -i -Dsonar.projectVersion="${version}"
+          ./gradlew -x test sonar -i -Dsonar.organization="${{ inputs.sonar-organization }}" -Dsonar.projectKey="${{ steps.sonar-project-name.outputs.sonar-project }}" -Dsonar.projectVersion="${version}"
 
       - name: SonarCloud Code Analysis
         if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') != true && github.actor != 'dependabot[bot]' }}
@@ -223,4 +235,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           JAVA_HOME=$JAVA_HOME_17_X64 
-          ./gradlew  -x test sonar -i
+          ./gradlew -x test sonar -i -Dsonar.organization="${{ inputs.sonar-organization }}" -Dsonar.projectKey="${{ steps.sonar-project-name.outputs.sonar-project }}"
+
