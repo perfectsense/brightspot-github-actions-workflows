@@ -57,7 +57,7 @@ on:
 
       sonar-project-key:
         type: string
-        default: ""
+        required: false
 
       env1Name:
         description: Name for environment variable #1 (value is passed via secrets)
