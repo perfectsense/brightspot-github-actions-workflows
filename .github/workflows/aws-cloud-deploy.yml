@@ -96,7 +96,7 @@ on:
 
 jobs:
   build-x86-container:
-    name: "Build x86 Contaner"
+    name: "Build x86 Container"
     runs-on: ${{ inputs.runs-on }}
     env:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -248,7 +248,7 @@ jobs:
         shell: bash
 
   build-arm-container:
-    name: "Build ARM Contaner"
+    name: "Build ARM Container"
     runs-on: ${{ inputs.runs-on-arm }}
     env:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -387,7 +387,7 @@ jobs:
         shell: bash
 
   build-aws-image-manifest:
-    name: "Build Contaner Manifest"
+    name: "Build Container Manifest"
     if: ${{ inputs.deploy-container }}
     runs-on: ubuntu-20.04
     env:
