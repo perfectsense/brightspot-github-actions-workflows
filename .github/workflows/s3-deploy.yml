@@ -1,0 +1,125 @@
+name: 'Brightspot AWS S3 Deploy'
+
+on:
+  workflow_call:
+    inputs:
+      war-artifact-name:
+        description: 'Name of GitHub Actions artifact containing the WAR file'
+        type: string
+        default: 'brightspot-build'
+
+      publish-brightspot-version:
+        description: 'Whether to publish the calculated Brightspot version to Ops Desk'
+        type: boolean
+        default: true
+
+      region:
+        description: 'Region project is deployed to'
+        required: true
+        type: string
+
+      project:
+        description: 'Shortname for project'
+        required: true
+        type: string
+
+      project-account-id:
+        description: 'Project Account ID, defaults to Github Vars PROJECT_AWS_ACCOUNT_ID'
+        required: false
+        type: string
+
+      repository:
+        description: 'Repository name. This overrides the default which is ${project}/${project}'
+        required: false
+        type: string
+
+      deploy-bucket:
+        description: 'S3 bucket to deploy to'
+        required: false
+        type: string
+
+      deploy-bucket-prefix:
+        description: 'Directory prefix within the S3 bucket'
+        required: false
+        type: string
+
+      runs-on:
+        description: Platform to execute on
+        type: string
+        default: ubuntu-20.04-4core
+
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
+        required: false
+      OPSDESK_API_CLIENT_ID:
+        required: false
+      OPSDESK_API_SECRET:
+        required: false
+
+jobs:
+  deploy-s3:
+    name: "Deploy"
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      opsdesk_api_client_id: ${{ secrets.OPSDESK_API_CLIENT_ID }}
+    # Map the job outputs to step outputs
+    outputs:
+      caller-sha: ${{ steps.workflows-version.outputs.caller-sha }}
+      account-id: ${{ steps.project-account.outputs.account-id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.war-artifact-name }}
+          path: brightspot-build
+
+      - name: Get workflow reference
+        id: workflow-version
+        run: |
+          sha=$(curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }} | jq -r '.referenced_workflows[] | select(.path|contains("s3-deploy")) | .sha')
+          echo "caller-sha=$sha" >> $GITHUB_OUTPUT
+
+      - name: Project Account ID
+        id: project-account-id
+        shell: bash
+        run: |
+          ACCOUNT_ID=""
+          if [[ ! -z "${{ inputs.project-account-id }}" ]]; then
+            ACCOUNT_ID=${{ inputs.project-account-id }}
+          else
+            ACCOUNT_ID=${{ vars.PROJECT_AWS_ACCOUNT_ID }}
+          fi
+          echo "account-id=$(echo $ACCOUNT_ID)" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v4
+        with:
+          repository: perfectsense/brightspot-github-actions-workflows
+          ref: ${{ steps.workflow-version.outputs.caller-sha }}
+          path: ./brightspot
+
+      - name: Get Tag Version
+        shell: bash
+        run: |
+          echo "GITHUB_ACTIONS_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+
+      - name: Deploy to S3
+        if: ${{ inputs.deploy-s3 && env.aws_access_secret != '' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: ${{ inputs.region }}
+          DEPLOY_BUCKET: ${{ inputs.deploy-bucket }}
+          DEPLOY_BUCKET_PREFIX: ${{ inputs.deploy-bucket-prefix }}
+          DEPLOY_SOURCE_DIR: brightspot-build
+        shell: bash
+        run: ./brightspot/aws/aws-s3-deploy.sh
+
+
