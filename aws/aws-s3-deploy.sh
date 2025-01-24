@@ -105,7 +105,7 @@ then
         number_of_items=`aws s3api list-objects-v2 --bucket $DEPLOY_BUCKET --prefix $cleanup_prefix$suffix/ --output=json --query="length(Contents[])"` || number_of_items=0
         echo "$number_of_items items in $DEPLOY_BUCKET/$cleanup_prefix$suffix/..."
         
-        aws s3api list-objects-v2 --bucket $DEPLOY_BUCKET --prefix $cleanup_prefix$suffix/ --output=json | jq -r '[.Contents[] | .LastModified, .Key] | @tsv' \
+        aws s3api list-objects-v2 --bucket $DEPLOY_BUCKET --prefix $cleanup_prefix$suffix/ --output=json | jq -r '[.Contents[] | .LastModified, .Key] | @tsv' | \
         while read -r line
         do
             last_modified=`echo "$line" | cut -f1"
