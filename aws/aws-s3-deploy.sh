@@ -108,7 +108,7 @@ then
         aws s3api list-objects-v2 --bucket $DEPLOY_BUCKET --prefix $cleanup_prefix$suffix/ --output=json | jq -r '[.Contents[] | .LastModified, .Key] | @tsv' | \
         while read -r line
         do
-            last_modified=`echo "$line" | cut -f1"
+            last_modified=`echo "$line" | cut -f1"`
             if [[ -z $last_modified ]]
             then
                 continue
