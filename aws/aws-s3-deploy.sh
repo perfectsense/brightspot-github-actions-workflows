@@ -108,14 +108,14 @@ then
         aws s3api list-objects-v2 --bucket $DEPLOY_BUCKET --prefix $cleanup_prefix$suffix/ --output=json | jq -r '[.Contents[] | .LastModified, .Key] | @tsv' | \
         while read -r line
         do
-            last_modified=`echo "$line" | cut -f1"`
+            last_modified=`echo "$line" | cut -f1`
             if [[ -z $last_modified ]]
             then
                 continue
             fi
             item_count=$((item_count+1))
             last_modified_ts=`date -d"$last_modified" +%s`
-            filename=`echo "$line" | cut -f2"
+            filename=`echo "$line" | cut -f2`
             echo "File # $item_count: $filename. Last modified: $last_modified_ts"
             if [[ $last_modified_ts -lt $older_than_ts ]]
             then
