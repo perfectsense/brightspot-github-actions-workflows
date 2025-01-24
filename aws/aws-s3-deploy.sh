@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 set -eu
 
@@ -109,7 +109,9 @@ then
         aws s3api list-objects --bucket $DEPLOY_BUCKET --prefix $cleanup_prefix$suffix/ --output=text | \
         while read -r line
         do
+            echo "s3api line = $line"
             last_modified=`echo "$line" | awk -F'\t' '{print $4}'`
+            echo "s3api last_modified: $last_modified"
             if [[ -z $last_modified ]]
             then
                 continue
