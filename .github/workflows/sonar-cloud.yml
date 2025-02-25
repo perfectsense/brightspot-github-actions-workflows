@@ -80,6 +80,8 @@ on:
         required: false
       GRADLE_CACHE_PASSWORD:
         required: false
+      SONAR_TOKEN:
+        required: false
 jobs:
   sonar-cloud:
     name: "Sonar Cloud"
