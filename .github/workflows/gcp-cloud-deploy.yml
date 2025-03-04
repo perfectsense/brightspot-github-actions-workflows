@@ -39,7 +39,7 @@ on:
       runs-on:
         description: Platform to execute on
         type: string
-        default: ubuntu-20.04-4core
+        default: ubuntu-22.04-4core
 
       override-build-name:
         description: Forces the docker image build and tag name to the given value.

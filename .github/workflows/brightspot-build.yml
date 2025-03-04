@@ -56,7 +56,7 @@ on:
       runs-on:
         description: Platform to execute on
         type: string
-        default: ubuntu-20.04-4core
+        default: ubuntu-22.04-4core
 
       env1Name:
         description: Name for environment variable #1 (value is passed via secrets)

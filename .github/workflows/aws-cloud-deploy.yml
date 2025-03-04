@@ -64,7 +64,7 @@ on:
       runs-on:
         description: Platform to execute on
         type: string
-        default: ubuntu-20.04-4core
+        default: ubuntu-22.04-4core
 
       runs-on-arm:
         description: Platform to execute on
@@ -389,7 +389,7 @@ jobs:
   build-aws-image-manifest:
     name: "Build Container Manifest"
     if: ${{ inputs.deploy-container }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       aws_access_secret: ${{ secrets.AWS_ACCESS_KEY_ID }}
       cloud_aws_access_secret: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}

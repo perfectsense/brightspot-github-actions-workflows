@@ -46,7 +46,7 @@ on:
       runs-on:
         description: Platform to execute on
         type: string
-        default: ubuntu-20.04-4core
+        default: ubuntu-22.04-4core
 
     secrets:
       AWS_ACCESS_KEY_ID:
