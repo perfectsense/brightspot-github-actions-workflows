@@ -76,6 +76,12 @@ on:
         required: false
         type: string
 
+      tag-prefix:
+        description: 'Optional prefix to apply to both version and build tag names'
+        required: false
+        type: string
+        default: ''
+
     secrets:
       AWS_ACCESS_KEY_ID:
         required: false
@@ -217,6 +223,14 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
+          # read optional prefix
+          prefix="${{ inputs.tag-prefix }}"
+          # apply prefix if given
+          if [[ -n "$prefix" ]]; then
+            version="$prefix$version"
+            build="$prefix$build"
+          fi
+
           cp brightspot-build/*.war ${{ inputs.dockerfile-directory }}/web.war
           cd ${{ inputs.dockerfile-directory }}
 
@@ -356,6 +370,14 @@ jobs:
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
+          # read optional prefix
+          prefix="${{ inputs.tag-prefix }}"
+          # apply prefix if given
+          if [[ -n "$prefix" ]]; then
+            version="$prefix$version"
+            build="$prefix$build"
+          fi
+
           cp brightspot-build/*.war ${{ inputs.dockerfile-directory }}/web.war
           cd ${{ inputs.dockerfile-directory }}
 
@@ -451,6 +473,14 @@ jobs:
               build=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
               build+=-build$GITHUB_RUN_NUMBER
               version=development-$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+          fi
+
+          # read optional prefix
+          prefix="${{ inputs.tag-prefix }}"
+          # apply prefix if given
+          if [[ -n "$prefix" ]]; then
+            version="$prefix$version"
+            build="$prefix$build"
           fi
 
           PROJECT="${{ inputs.project }}"
