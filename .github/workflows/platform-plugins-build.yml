@@ -132,7 +132,7 @@ jobs:
       - name: Store Build
         uses: actions/upload-artifact@v4
         with:
-            name: brightspot-build
+            name: web-build
             path: ${{ inputs.war-build-dir }}
             retention-days: 2
 
