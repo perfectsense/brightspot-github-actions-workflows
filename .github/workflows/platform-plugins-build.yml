@@ -130,7 +130,6 @@ jobs:
           report_paths: '**/build/test-results/test/TEST-*.xml'
 
       - name: Store Build
-        if: ${{ inputs.build-gradle || inputs.build-maven }}
         uses: actions/upload-artifact@v4
         with:
             name: brightspot-build
@@ -138,12 +137,10 @@ jobs:
             retention-days: 2
 
       - name: Find Brightspot Version
-        if: ${{ inputs.build-gradle || inputs.build-maven }}
         run: ./brightspot/analysis/brightspot-version.sh > brightspot-version.txt
         shell: bash
 
       - name: Store Brightspot Version
-        if: ${{ inputs.build-gradle || inputs.build-maven }}
         uses: actions/upload-artifact@v4
         with:
             name: brightspot-version
