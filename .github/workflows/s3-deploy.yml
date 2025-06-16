@@ -110,7 +110,7 @@ jobs:
           echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
 
       - name: Deploy to S3
-        if: ${{ inputs.deploy-s3 && env.aws_access_secret != '' }}
+        if: ${{ env.aws_access_secret != '' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
