@@ -172,7 +172,23 @@ jobs:
           GRADLE_PARAMS: ${{ inputs.gradle-params }}
         run: ./brightspot/brightspot/build-gradle.sh
 
+      - name: Detect if current branch is the default branch
+        id: is_default_branch
+        run: |
+          REPO="${{ github.repository }}"
+          CURRENT_REF="${{ github.ref_name }}"
+          DEFAULT_BRANCH=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/$REPO | jq -r .default_branch)
+
+          if [[ "$CURRENT_REF" == "$DEFAULT_BRANCH" ]]; then
+            echo "run_submission=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_submission=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate and submit dependency graph
+        if: steps.is_default_branch.outputs.run_submission == 'true'
         uses: gradle/actions/dependency-submission@v4
         with:
           artifact-retention-days: 3
