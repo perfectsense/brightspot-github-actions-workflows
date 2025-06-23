@@ -179,6 +179,7 @@ jobs:
           build-scan-publish: true
           build-scan-terms-of-use-url: "https://gradle.com/help/legal-terms-of-use"
           build-scan-terms-of-use-agree: "yes"
+        continue-on-error: true
 
       - name: Publish JUnit test reports
         uses: mikepenz/action-junit-report@v5
