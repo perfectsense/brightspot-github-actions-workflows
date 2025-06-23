@@ -172,6 +172,14 @@ jobs:
           GRADLE_PARAMS: ${{ inputs.gradle-params }}
         run: ./brightspot/brightspot/build-gradle.sh
 
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@v4
+        with:
+          artifact-retention-days: 3
+          build-scan-publish: true
+          build-scan-terms-of-use-url: "https://gradle.com/help/legal-terms-of-use"
+          build-scan-terms-of-use-agree: "yes"
+
       - name: Publish JUnit test reports
         uses: mikepenz/action-junit-report@v5
         if: ${{ inputs.build-gradle && !cancelled() }}
