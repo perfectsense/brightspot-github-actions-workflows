@@ -1,0 +1,105 @@
+name: Platform Plugin
+
+on:
+  workflow_call:
+    inputs:
+      build-runs-on:
+        description: The type of the machine to run the build job on.
+        type: string
+        default: ubuntu-22.04-4core
+      build-debug:
+        description: Whether to start a tmate session for debugging the build.
+        type: boolean
+        default: false
+      deploy-tag-prefix:
+        description: The prefix to apply to use for the deployment tag.
+        type: string
+        required: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ inputs.build-runs-on }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
+
+      - name: Start the tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ inputs.build-debug }}
+
+      - name: Build the pull request
+        if: ${{ !startsWith(github.ref, 'refs/heads/release/') && !startsWith(github.ref, 'refs/tags/v') }}
+        run: ./gradlew build
+
+      - name: Build and publish the release
+        if: ${{ startsWith(github.ref, 'refs/heads/release/') }}
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+        run: |
+          ./gradlew build publish \
+              -PmavenUsername="$MAVEN_USERNAME" \
+              -PmavenPassword="$MAVEN_PASSWORD"
+
+      - name: Build and publish the tag
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+        run: |
+          ./gradlew build publish -x check -x test \
+              -Prelease="${GITHUB_REF#refs/tags/v}" \
+              -PmavenUsername="$MAVEN_USERNAME" \
+              -PmavenPassword="$MAVEN_PASSWORD"
+
+      - name: Process the unit test reports
+        uses: mikepenz/action-junit-report@v3
+        if: always()
+        continue-on-error: true
+        with:
+          check_name: Unit Tests
+          report_paths: '**/build/test-results/test/TEST-*.xml'
+
+      - name: Check the code using Sonar
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew sonar -i
+
+      - name: Store the web WAR file
+        uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: web/build/libs
+          retention-days: 2
+
+  deploy:
+    needs: build
+    name: Deploy
+    uses: ./.github/workflows/aws-cloud-deploy.yml
+    secrets:
+      CLOUD_AWS_ACCESS_KEY_ID: ${{ secrets.CLOUD_AWS_ACCESS_KEY_ID }}
+      CLOUD_AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUD_AWS_SECRET_ACCESS_KEY }}
+      CLOUD_AWS_SESSION_TOKEN: ${{ secrets.CLOUD_AWS_SESSION_TOKEN }}
+    with:
+      war-artifact-name: web
+      publish-brightspot-version: false
+      region: us-east-1
+      project: brightspot-platform
+      repository: platform/plugins
+      dockerfile-directory: web/container
+      tag-prefix: ${{ inputs.deploy-tag-prefix }}
