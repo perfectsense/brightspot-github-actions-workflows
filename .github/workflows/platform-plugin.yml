@@ -37,6 +37,13 @@ jobs:
         with:
           cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
 
+      - name: Cache Sonar
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
       - name: Start the tmate session
         uses: mxschmitt/action-tmate@v3
         if: ${{ inputs.build-debug }}
