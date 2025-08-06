@@ -64,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: brightspot-build
           path: brightspot-build
@@ -164,7 +164,7 @@ jobs:
           echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: brightspot-version
           path: brightspot-version
