@@ -22,7 +22,7 @@ jobs:
     runs-on: ${{ inputs.build-runs-on }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -74,7 +74,7 @@ jobs:
               -PmavenPassword="$MAVEN_PASSWORD"
 
       - name: Process the unit test reports
-        uses: mikepenz/action-junit-report@v3
+        uses: mikepenz/action-junit-report@v5
         if: always()
         continue-on-error: true
         with:

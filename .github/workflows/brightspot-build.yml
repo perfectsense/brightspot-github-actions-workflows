@@ -101,7 +101,7 @@ jobs:
             echo "${{ inputs.env3Name }}=${{ secrets.ENV_3_VALUE }}" >> $GITHUB_ENV
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
         # must run before gradle/gradle-build-action
       - name: Validate Gradle wrapper JAR files
@@ -131,7 +131,7 @@ jobs:
           echo "GITHUB_ACTIONS_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
           echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: perfectsense/brightspot-github-actions-workflows
           ref: v2
