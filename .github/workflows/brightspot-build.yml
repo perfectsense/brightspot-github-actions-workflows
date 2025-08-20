@@ -102,6 +102,8 @@ jobs:
           fi
 
       - uses: actions/checkout@v4
+        with:
+            lfs: true
 
         # must run before gradle/gradle-build-action
       - name: Validate Gradle wrapper JAR files
@@ -198,4 +200,3 @@ jobs:
             name: brightspot-version
             path: brightspot-version.txt
             retention-days: 2
-
