@@ -18,27 +18,18 @@ jobs:
           fetch-depth: 1
 
       - name: Review the PR using Anthropic Claude Code
-        uses: anthropics/claude-code-action@main
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "mcp__github__create_pending_pull_request_review,mcp__github__get_pull_request_diff,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review"
-          direct_prompt: |
-            Review this pull request thoroughly and provide concise, specific feedback:
+          claude_args: --allowedTools 'mcp__github__create_pending_pull_request_review,mcp__github__get_pull_request_diff,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review'
+          use_sticky_comment: true
+          prompt: |
+            Review this pull request thoroughly and provide concise, specific feedback, focusing on the following:
             
-            1. Start a review using the `mcp__github__create_pending_pull_request_review` tool.
-            2. Analyze the changes using the `mcp__github__get_pull_request_diff` tool.
-            3. Add inline comments if possible using the `mcp__github__add_comment_to_pending_review` tool. DO NOT add them if there isn't actionable feedback that the user can address.
-            4. Submit it using the `mcp__github__submit_pending_pull_request` tool and include an overall summary.
-            
-            IMPORTANT: The comment used to communicate with the user should only contain the todo list. DO NOT add a
-            summary when finished as that'd be duplicative of the review.
-            
-            Focus your review on:
-
-              - Overall architecture and design decisions
-              - Potential bugs or security issues
-              - Suggestions for improvements
-              - Code quality and best practices
-              - Performance considerations
-              - Maintenance and readability
-              - Documentation consistency
+            - Overall architecture and design decisions
+            - Potential bugs or security issues
+            - Suggestions for improvements
+            - Code quality and best practices
+            - Performance considerations
+            - Maintenance and readability
+            - Documentation consistency
