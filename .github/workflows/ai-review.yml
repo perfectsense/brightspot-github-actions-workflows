@@ -4,8 +4,8 @@ on:
   workflow_call:
 
 permissions:
+  actions: read
   contents: read
-  pull-requests: read
   id-token: write
 
 jobs:
