@@ -22,7 +22,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: --allowedTools 'mcp__github__create_pending_pull_request_review,mcp__github__get_pull_request_diff,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review'
           use_sticky_comment: true
           prompt: |
             Review this pull request thoroughly and provide concise, specific feedback, focusing on the following:
