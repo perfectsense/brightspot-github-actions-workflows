@@ -22,6 +22,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --allowedTools 'mcp__github_ci__download_job_log,mcp__github_ci__get_ci_status,mcp__github_ci__get_workflow_run_details,mcp__github_comment__update_claude_comment'
           use_sticky_comment: true
           prompt: |
             Review this pull request thoroughly and provide concise, specific feedback, focusing on the following:
