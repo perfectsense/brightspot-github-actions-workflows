@@ -3,30 +3,29 @@ name: AI Review
 on:
   workflow_call:
 
-permissions:
-  actions: read
-  contents: read
-  id-token: write
-
 jobs:
   review:
     name: Review
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Review the PR using Anthropic Claude Code
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@v1-dev
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: --allowedTools 'mcp__github_ci__download_job_log,mcp__github_ci__get_ci_status,mcp__github_ci__get_workflow_run_details,mcp__github_comment__update_claude_comment'
-          use_sticky_comment: true
           prompt: |
-            Review this pull request thoroughly and provide concise, specific feedback, focusing on the following:
+            Review this pull request comprehensively.
             
+            Focus on:
             - Overall architecture and design decisions
             - Potential bugs or security issues
             - Suggestions for improvements
@@ -34,3 +33,6 @@ jobs:
             - Performance considerations
             - Maintenance and readability
             - Documentation consistency
+            
+            Be constructive and provide specific suggestions for improvements.
+            Use GitHub's suggestion format when proposing code changes.
