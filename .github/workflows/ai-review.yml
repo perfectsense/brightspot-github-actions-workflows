@@ -16,7 +16,7 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Review the PR using Anthropic Claude Code
         uses: anthropics/claude-code-action@v1-dev
