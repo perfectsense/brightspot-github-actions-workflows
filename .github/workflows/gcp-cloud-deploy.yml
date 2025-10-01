@@ -62,9 +62,9 @@ jobs:
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
       caller-sha: ${{ steps.workflows-version.outputs.caller-sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: brightspot-build
           path: brightspot-build
@@ -75,7 +75,7 @@ jobs:
           sha=$(curl -L -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }} | jq -r '.referenced_workflows[] | select(.path|contains("gcp-cloud-deploy")) | .sha')
           echo "caller-sha=$sha" >> $GITHUB_OUTPUT
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: perfectsense/brightspot-github-actions-workflows
           ref: ${{ steps.workflow-version.outputs.caller-sha }}
@@ -88,12 +88,12 @@ jobs:
           echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
 
       - name: Set Up gcloud CLI
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_GCR_SECRET_KEY }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
         with:
           version: "${{ inputs.gcloud-version }}"
 
@@ -164,7 +164,7 @@ jobs:
           echo "container-build-tag=$(echo $BUILD_TAG)" >> $GITHUB_OUTPUT
           echo "container-version-tag=$(echo $VERSION_TAG)" >> $GITHUB_OUTPUT
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: brightspot-version
           path: brightspot-version
