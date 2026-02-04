@@ -219,21 +219,21 @@ jobs:
 
           if [[ ! -z "${{ inputs.override-build-name }}" ]]; then
               echo "Override Build Name ${{ inputs.override-build-name }}"
-              version="$prefix${{ inputs.override-build-name }}"
-              build="$prefix${{ inputs.override-build-name }}"
+              version="${prefix}${{ inputs.override-build-name }}"
+              build="${prefix}${{ inputs.override-build-name }}"
           elif [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
-              version="pullrequest-$prefix$GITHUB_ACTIONS_PULL_REQUEST"
-              build="pullrequest-$prefix$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER"
+              version="pullrequest-${prefix}$GITHUB_ACTIONS_PULL_REQUEST"
+              build="pullrequest-${prefix}$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER"
           elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
               echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
-              version=release-$prefix${GITHUB_ACTIONS_TAG/v/}
-              build=release-$prefix${GITHUB_ACTIONS_TAG/v/}
+              version=release-${prefix}${GITHUB_ACTIONS_TAG/v/}
+              build=release-${prefix}${GITHUB_ACTIONS_TAG/v/}
           else
               COMMIT_COUNT=$(git rev-list --count HEAD)
               COMMIT_SHA=$(git rev-parse --short=6 HEAD)
-              build=development-$prefix$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              build=development-${prefix}$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
               build+=-build$GITHUB_RUN_NUMBER
-              version=development-$prefix$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              version=development-${prefix}$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
           cp brightspot-build/*.war ${{ inputs.dockerfile-directory }}/web.war
@@ -365,21 +365,21 @@ jobs:
 
           if [[ ! -z "${{ inputs.override-build-name }}" ]]; then
               echo "Override Build Name ${{ inputs.override-build-name }}"
-              version="$prefix${{ inputs.override-build-name }}"
-              build="$prefix${{ inputs.override-build-name }}"
+              version="${prefix}${{ inputs.override-build-name }}"
+              build="${prefix}${{ inputs.override-build-name }}"
           elif [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
-              version="pullrequest-$prefix$GITHUB_ACTIONS_PULL_REQUEST"
-              build="pullrequest-$prefix$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER"
+              version="pullrequest-${prefix}$GITHUB_ACTIONS_PULL_REQUEST"
+              build="pullrequest-${prefix}$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER"
           elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
               echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
-              version=release-$prefix${GITHUB_ACTIONS_TAG/v/}
-              build=release-$prefix${GITHUB_ACTIONS_TAG/v/}
+              version=release-${prefix}${GITHUB_ACTIONS_TAG/v/}
+              build=release-${prefix}${GITHUB_ACTIONS_TAG/v/}
           else
               COMMIT_COUNT=$(git rev-list --count HEAD)
               COMMIT_SHA=$(git rev-parse --short=6 HEAD)
-              build=development-$prefix$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              build=development-${prefix}$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
               build+=-build$GITHUB_RUN_NUMBER
-              version=development-$prefix$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              version=development-${prefix}$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
           cp brightspot-build/*.war ${{ inputs.dockerfile-directory }}/web.war
@@ -469,21 +469,21 @@ jobs:
 
           if [[ ! -z "${{ inputs.override-build-name }}" ]]; then
               echo "Override Build Name ${{ inputs.override-build-name }}"
-              version="$prefix${{ inputs.override-build-name }}"
-              build="$prefix${{ inputs.override-build-name }}"
+              version="${prefix}${{ inputs.override-build-name }}"
+              build="${prefix}${{ inputs.override-build-name }}"
           elif [[ ! -z "$GITHUB_ACTIONS_PULL_REQUEST" && "$GITHUB_ACTIONS_PULL_REQUEST" != "" ]]; then
-              version="pullrequest-$prefix$GITHUB_ACTIONS_PULL_REQUEST"
-              build="pullrequest-$prefix$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER"
+              version="pullrequest-${prefix}$GITHUB_ACTIONS_PULL_REQUEST"
+              build="pullrequest-${prefix}$GITHUB_ACTIONS_PULL_REQUEST-build$GITHUB_RUN_NUMBER"
           elif [[ "$GITHUB_ACTIONS_TAG" =~ ^v[0-9]+\. ]]; then
               echo "GITHUB_ACTIONS_TAG ${GITHUB_ACTIONS_TAG}"
-              version=release-$prefix${GITHUB_ACTIONS_TAG/v/}
-              build=release-$prefix${GITHUB_ACTIONS_TAG/v/}
+              version=release-${prefix}${GITHUB_ACTIONS_TAG/v/}
+              build=release-${prefix}${GITHUB_ACTIONS_TAG/v/}
           else
               COMMIT_COUNT=$(git rev-list --count HEAD)
               COMMIT_SHA=$(git rev-parse --short=6 HEAD)
-              build=development-$prefix$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              build=development-${prefix}$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
               build+=-build$GITHUB_RUN_NUMBER
-              version=development-$prefix$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
+              version=development-${prefix}$(git describe --all | sed 's/heads\///' | sed 's/\//-/g')
           fi
 
           PROJECT="${{ inputs.project }}"
