@@ -23,6 +23,52 @@ builds/exampleco/pull-request/15/exampleco-1.0-SNAPSHOT.war
 builds/exampleco/pull-request/15/exampleco-1.0-SNAPSHOT.zip
 ```
 
+## PR Title Check
+
+This workflow validates that PR titles follow the [Conventional Commits](https://www.conventionalcommits.org/) specification and include a Jira ticket reference.
+
+### Features
+- Enforces conventional commit format (e.g., `feat:`, `fix:`, `chore:`)
+- Requires Jira ticket reference in the PR title (e.g., `BSP-123`)
+- Supports multiple Jira project keys
+- Skips Jira validation for `chore:`, `ci:`, `docs:`, and `style:` prefixes
+- Skips validation for draft PRs and auto-release PRs
+
+### Inputs
+| Input | Required | Description |
+|-------|----------|-------------|
+| `jira-projects` | Yes | Jira project key(s). Use pipe separator for multiple keys (e.g., `"BSP"` or `"BSP\|BSPGO"`) |
+
+### Example Usage
+```yaml
+name: PR Check
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+
+jobs:
+  title:
+    name: Title
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/pr-title-check.yml@v2
+    with:
+      jira-projects: BSPGO
+```
+
+For multiple Jira projects:
+```yaml
+jobs:
+  title:
+    name: Title
+    uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/pr-title-check.yml@v2
+    with:
+      jira-projects: BSP|BSPGO
+```
+
 ## Usage
 
 Variables used below:
