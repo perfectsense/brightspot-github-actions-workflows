@@ -1,0 +1,25 @@
+name: PR Title Check
+
+on:
+  workflow_call:
+    inputs:
+      jira-projects:
+        description: 'Jira project key(s) separated by pipe for multiple (e.g., "BSP" or "BSP|BSPGO")'
+        required: true
+        type: string
+
+jobs:
+  title-check:
+    name: PR Title Check
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Check the PR title against the Conventional Commits spec
+        uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          subjectPattern: "${{ !contains(github.event.pull_request.labels.*.name, 'autorelease: pending') && !startsWith(github.event.pull_request.title, 'chore:') && !startsWith(github.event.pull_request.title, 'ci:') && !startsWith(github.event.pull_request.title, 'docs:') && !startsWith(github.event.pull_request.title, 'style:') && format('(^|.+\\s)({0})-\\d+(\\s.+|$)', inputs.jira-projects) || '' }}"
+          subjectPatternError: "PR title must contain a reference to one or more ${{ inputs.jira-projects }} work items in Jira."
