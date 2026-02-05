@@ -9,10 +9,12 @@ on:
         type: string
 
 jobs:
-  title:
-    name: Title
+  title-check:
+    name: PR Title Check
     if: ${{ github.event.pull_request.draft == false }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: read
     steps:
       - name: Check the PR title against the Conventional Commits spec
         uses: amannn/action-semantic-pull-request@v6
