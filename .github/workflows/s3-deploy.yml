@@ -72,9 +72,9 @@ jobs:
       caller-sha: ${{ steps.workflows-version.outputs.caller-sha }}
       account-id: ${{ steps.project-account.outputs.account-id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: ${{ inputs.war-artifact-name }}
           path: brightspot-build
@@ -97,7 +97,7 @@ jobs:
           fi
           echo "account-id=$(echo $ACCOUNT_ID)" >> $GITHUB_OUTPUT
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: perfectsense/brightspot-github-actions-workflows
           ref: ${{ steps.workflow-version.outputs.caller-sha }}
