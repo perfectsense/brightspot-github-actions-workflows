@@ -35,7 +35,7 @@ permissions:
 jobs:
   review:
     if: |
-      github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_call') &&
       !github.event.pull_request.draft &&
       !contains(github.event.pull_request.labels.*.name, 'autorelease: pending') &&
       !contains(github.event.pull_request.labels.*.name, 'dependencies')
