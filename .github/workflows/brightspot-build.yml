@@ -147,7 +147,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: perfectsense/brightspot-github-actions-workflows
-          ref: v2
+          ref: feature/aireview
           path: ./brightspot
 
       - name: Maven Cache
