@@ -14,18 +14,6 @@ on:
         required: false
       JIRA_API_TOKEN:
         required: false
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - ready_for_review
-      - reopened
-  issue_comment:
-    types:
-      - created
-  pull_request_review_comment:
-    types:
-      - created
 
 permissions:
   contents: read
