@@ -65,7 +65,6 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             Please review this pull request with a focus on:
-            - Backward compatibility — always call out breaking changes to APIs, data formats, or behavior that could affect existing consumers
             - Potential bugs, logic errors, or incorrect behavior
             - Security implications
             - Performance considerations
