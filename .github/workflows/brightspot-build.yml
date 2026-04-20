@@ -79,7 +79,7 @@ on:
         required: false
       GRADLE_CACHE_PASSWORD:
         required: false
-        
+
 jobs:
   build:
     name: "Build"
