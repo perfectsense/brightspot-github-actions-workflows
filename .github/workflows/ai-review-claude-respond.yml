@@ -1,4 +1,4 @@
-name: AI Review - Respond
+name: AI Review (Claude) - Respond
 
 on:
   issue_comment:
