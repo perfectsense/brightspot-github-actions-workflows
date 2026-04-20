@@ -68,11 +68,6 @@ on:
         description: Name for environment variable #3 (value is passed via secrets)
         type: string
 
-      ai-review-jira-project:
-        description: 'Jira project key for AI review (auto-detected from repo Autolink settings if omitted)'
-        required: false
-        type: string
-
     secrets:
       ENV_1_VALUE:
         required: false
@@ -84,13 +79,6 @@ on:
         required: false
       GRADLE_CACHE_PASSWORD:
         required: false
-      ANTHROPIC_API_KEY:
-        required: false
-      JIRA_EMAIL:
-        required: false
-      JIRA_API_TOKEN:
-        required: false
-
 jobs:
   build:
     name: "Build"
@@ -211,13 +199,3 @@ jobs:
             name: brightspot-version
             path: brightspot-version.txt
             retention-days: 2
-
-  ai-review:
-    if: ${{ github.event_name == 'pull_request' }}
-    uses: ./.github/workflows/ai-review.yml
-    with:
-      jira-project: ${{ inputs.ai-review-jira-project }}
-    secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
