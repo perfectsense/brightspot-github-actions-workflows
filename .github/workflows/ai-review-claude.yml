@@ -1,19 +1,16 @@
-name: AI Review
+name: AI Review (Claude)
 
 on:
-  workflow_call:
-    inputs:
-      jira-project:
-        description: 'Jira project key override (e.g. BSP). If omitted, detected from repo Autolink settings.'
-        required: false
-        type: string
-    secrets:
-      ANTHROPIC_API_KEY:
-        required: true
-      JIRA_EMAIL:
-        required: false
-      JIRA_API_TOKEN:
-        required: false
+  push:
+    branches:
+      - develop
+      - release/*
+    tags: v*
+
+  pull_request:
+    branches:
+      - develop
+      - release/*
 
 permissions:
   contents: read
@@ -23,7 +20,7 @@ permissions:
 jobs:
   review:
     if: |
-      (github.event_name == 'pull_request' || github.event_name == 'workflow_call') &&
+      github.event_name == 'pull_request' &&
       !github.event.pull_request.draft &&
       !contains(github.event.pull_request.labels.*.name, 'autorelease: pending') &&
       !contains(github.event.pull_request.labels.*.name, 'dependencies')
@@ -40,9 +37,7 @@ jobs:
           DETECTED=$(gh api repos/${{ github.repository }}/autolinks \
             --jq '[.[].key_prefix | select(test("^[A-Z]+-$"))] | first // ""' \
             | sed 's/-$//')
-          OVERRIDE="${{ inputs.jira-project }}"
-          PROJECT="${OVERRIDE:-${DETECTED:-BSP}}"
-          echo "jira-project=${PROJECT}" >> $GITHUB_OUTPUT
+          echo "jira-project=${DETECTED:-BSP}" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -65,7 +60,6 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             Please review this pull request with a focus on:
-            - Backward compatibility — always call out breaking changes to APIs, data formats, or behavior that could affect existing consumers
             - Potential bugs, logic errors, or incorrect behavior
             - Security implications
             - Performance considerations
@@ -85,22 +79,5 @@ jobs:
             Use the following context from Jira to evaluate whether the PR fulfills the requirements:
             ${{ steps.jira.outputs.context }}
 
-          claude_args: |
-            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
-
-  respond:
-    if: |
-      contains(github.event.comment.body, '@claude') &&
-      (github.event_name == 'pull_request_review_comment' || (github.event_name == 'issue_comment' && github.event.issue.pull_request))
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Check out the repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
             --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
