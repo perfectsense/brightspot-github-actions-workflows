@@ -67,6 +67,39 @@ on:
         default: 'job'
         type: string
 
+      deploy:
+        description: >-
+          Where to deploy after the build: "aws", "gcp", or "none" (default). The
+          deploy runs as a job in parallel with Sonar (both only need `build`), so
+          Sonar never blocks or delays it.
+        required: false
+        default: 'none'
+        type: string
+
+      deploy-project:
+        description: 'Deploy: project shortname (passed to the cloud deploy as `project`).'
+        required: false
+        default: ''
+        type: string
+
+      deploy-repository:
+        description: 'Deploy: repository name (passed as `repository`; the deploy fills in a default when empty).'
+        required: false
+        default: ''
+        type: string
+
+      deploy-region:
+        description: 'Deploy (AWS only): region to deploy to (passed as `region`).'
+        required: false
+        default: ''
+        type: string
+
+      deploy-registry:
+        description: 'Deploy (GCP only): registry to push the image to (passed as `registry`).'
+        required: false
+        default: ''
+        type: string
+
       env1Name:
         description: Name for environment variable #1 (value is passed via secrets)
         type: string
@@ -254,19 +287,16 @@ jobs:
             retention-days: 2
 
   # Sonar analysis (sonar: 'job' mode — the default). Delegates to the standalone
-  # brightspot-sonar.yml workflow, which runs on its own runner pool
-  # (sonar-ubuntu-22.04-4core) but with the SAME Java/Node toolchain as the build
-  # (forwarded below). Sonar requires Java 17+, so java-version must be 17+ — we do
-  # not support Sonar on older Java. Runs after `build` (warm Gradle remote cache),
-  # only when the repo has the `sonar` custom property set.
+  # brightspot-sonar.yml workflow on its own runner pool (sonar-ubuntu-22.04-4core),
+  # with the SAME Java/Node toolchain as the build (forwarded below). Sonar requires
+  # Java 17+. Runs after `build`, in PARALLEL with the deploy job(s) below — both
+  # only need `build`, so Sonar never blocks or delays the bundled deploy. Runs only
+  # when the repo has the `sonar` custom property set.
   #
-  # NOTE: this runs INSIDE the reusable workflow with fail-on-error at its default
-  # (true), so a Sonar/infra failure WILL fail this workflow and block a caller whose
-  # `deploy: needs: <this workflow>`. (A failing quality gate alone does NOT fail it:
-  # `./gradlew sonar` exits 0 on a red gate without qualitygate.wait.) For Sonar that
-  # can fail visibly WITHOUT ever blocking the deploy, set `sonar: disabled` here and
-  # call brightspot-sonar.yml as a SEPARATE top-level job in the caller (deploy needs
-  # build, not sonar).
+  # NOTE: this still gates an EXTERNAL deploy (a consumer that sets deploy: none and
+  # runs its own deploy job needing this whole workflow) — use the bundled `deploy`
+  # input instead, or run brightspot-sonar.yml as a separate top-level job, to avoid
+  # that. `sonar: inline` also delays the deploy (it runs inside the build job).
   sonar:
     name: "Sonar"
     needs: build
@@ -279,3 +309,32 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       gradle-action-cache-disable: ${{ inputs.gradle-action-cache-disable }}
+
+  # Deploy (deploy: 'aws'). Sibling of `sonar` — both only need `build`, so they run
+  # in parallel and Sonar never delays the deploy. Consumes the `brightspot-build`
+  # artifact. Requires the caller to use `secrets: inherit` so the AWS / Ops Desk
+  # secrets resolve. deploy-project and deploy-region are required by the AWS deploy.
+  deploy-aws:
+    name: "Deploy (AWS)"
+    needs: build
+    if: ${{ inputs.deploy == 'aws' }}
+    uses: ./.github/workflows/aws-cloud-deploy.yml
+    secrets: inherit
+    with:
+      project: ${{ inputs.deploy-project }}
+      repository: ${{ inputs.deploy-repository }}
+      region: ${{ inputs.deploy-region }}
+
+  # Deploy (deploy: 'gcp'). Sibling of `sonar` (parallel, never blocked by Sonar).
+  # Requires `secrets: inherit` for GCP_GCR_SECRET_KEY. deploy-project and
+  # deploy-registry are required by the GCP deploy.
+  deploy-gcp:
+    name: "Deploy (GCP)"
+    needs: build
+    if: ${{ inputs.deploy == 'gcp' }}
+    uses: ./.github/workflows/gcp-cloud-deploy.yml
+    secrets: inherit
+    with:
+      project: ${{ inputs.deploy-project }}
+      repository: ${{ inputs.deploy-repository }}
+      registry: ${{ inputs.deploy-registry }}
