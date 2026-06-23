@@ -33,13 +33,13 @@ on:
       java-version:
         description: 'Java version'
         required: false
-        default: '11'
+        default: '21'
         type: string
 
       node-version:
         description: 'Node version'
         required: false
-        default: '16.11.0'
+        default: '18.17.1'
         type: string
 
       cache-npm:
@@ -57,6 +57,15 @@ on:
         description: Platform to execute on
         type: string
         default: ubuntu-22.04-4core
+
+      sonar:
+        description: >-
+          How to run Sonar analysis: "job" (separate job on the Sonar runner pool,
+          default), "inline" (a step in the build job, reusing the build's compiled
+          classes and test/coverage — requires java-version 17+), or "disabled".
+        required: false
+        default: 'job'
+        type: string
 
       env1Name:
         description: Name for environment variable #1 (value is passed via secrets)
@@ -180,6 +189,49 @@ jobs:
         with:
           report_paths: '**/build/test-results/test/TEST-*.xml'
 
+      # Inline Sonar (sonar: 'inline'). Reuses this build job's compiled classes,
+      # test results, and coverage — no re-build, so coverage is real. Runs on the
+      # build runner and on this job's JDK, so java-version MUST be 17+ (the Sonar
+      # scanner minimum); on Java <17 the scanner errors. A failure here fails the
+      # build job. For the separate-runner / Java-21 path, use `sonar: job` instead.
+      - name: Read the `sonar` custom property
+        id: sonar-property
+        if: ${{ inputs.sonar == 'inline' && inputs.build-gradle }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.request('GET /repos/{owner}/{repo}/properties/values', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const property = data.find(p => p.property_name === 'sonar');
+            const value = property && property.value ? String(property.value) : '';
+            core.info(`sonar custom property: '${value}'`);
+            if (!value) {
+              core.warning("The 'sonar' custom property is not set on this repository; skipping Sonar. Contact an Admin to enable it.");
+            }
+            core.setOutput('value', value);
+
+      - name: Configure Sonar host and token from the `sonar` property
+        if: ${{ inputs.sonar == 'inline' && steps.sonar-property.outputs.value != '' }}
+        env:
+          # The `sonar` property selects the SonarQube instance, e.g. 02 -> https://02.sonarqube.brightspot.tools/
+          INSTANCE: ${{ steps.sonar-property.outputs.value }}
+          # Dynamic secret SONAR_TOKEN_<instance>; the caller must use `secrets: inherit` for it to resolve.
+          SONAR_TOKEN_DYNAMIC: ${{ secrets[format('SONAR_TOKEN_{0}', steps.sonar-property.outputs.value)] }}
+        run: |
+          echo "SONAR_HOST_URL=https://${INSTANCE}.sonarqube.brightspot.tools/" >> "$GITHUB_ENV"
+          echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
+
+      - name: Inline Sonar analysis
+        if: ${{ inputs.sonar == 'inline' && env.SONAR_TOKEN != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Reuses the compiled classes, tests, and coverage from the build above
+          # (no re-build). Uses this job's JDK — java-version must be 17+.
+          ./gradlew sonar -i -Dsonar.projectKey="perfectsense_${{ github.event.repository.name }}"
+
       - name: Store Build
         if: ${{ inputs.build-gradle || inputs.build-maven }}
         uses: actions/upload-artifact@v4
@@ -200,3 +252,30 @@ jobs:
             name: brightspot-version
             path: brightspot-version.txt
             retention-days: 2
+
+  # Sonar analysis (sonar: 'job' mode — the default). Delegates to the standalone
+  # brightspot-sonar.yml workflow, which runs on its own runner pool
+  # (sonar-ubuntu-22.04-4core) but with the SAME Java/Node toolchain as the build
+  # (forwarded below). Sonar requires Java 17+, so java-version must be 17+ — we do
+  # not support Sonar on older Java. Runs after `build` (warm Gradle remote cache),
+  # only when the repo has the `sonar` custom property set.
+  #
+  # NOTE: this runs INSIDE the reusable workflow with fail-on-error at its default
+  # (true), so a Sonar/infra failure WILL fail this workflow and block a caller whose
+  # `deploy: needs: <this workflow>`. (A failing quality gate alone does NOT fail it:
+  # `./gradlew sonar` exits 0 on a red gate without qualitygate.wait.) For Sonar that
+  # can fail visibly WITHOUT ever blocking the deploy, set `sonar: disabled` here and
+  # call brightspot-sonar.yml as a SEPARATE top-level job in the caller (deploy needs
+  # build, not sonar).
+  sonar:
+    name: "Sonar"
+    needs: build
+    if: ${{ inputs.sonar == 'job' && github.actor != 'dependabot[bot]' }}
+    uses: ./.github/workflows/brightspot-sonar.yml
+    secrets: inherit
+    with:
+      # Sonar uses the same toolchain as the build (must be Java 17+).
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+      node-version: ${{ inputs.node-version }}
+      gradle-action-cache-disable: ${{ inputs.gradle-action-cache-disable }}
