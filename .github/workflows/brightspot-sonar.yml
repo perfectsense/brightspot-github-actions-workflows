@@ -152,6 +152,7 @@ jobs:
 
       - name: Sonar analysis
         if: ${{ env.SONAR_TOKEN != '' }}
+        timeout-minutes: 20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
@@ -162,4 +163,43 @@ jobs:
           # Standalone job, so it builds the project itself (warm Gradle remote
           # cache keeps it fast). Tests are skipped (-x test). Runs on the JDK from
           # "Set up JDK" (inputs.java-version, default 21 — must be 17+ for the scanner).
-          ./gradlew build sonar -x test -i -Dsonar.projectKey="${{ steps.project-key.outputs.value }}"
+          # qualitygate.wait makes this wait for (and fail on) the quality gate,
+          # up to 20 minutes (qualitygate.timeout is in seconds).
+          ./gradlew build sonar -x test -i \
+            -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
+            -Dsonar.projectKey="${{ steps.project-key.outputs.value }}"
+
+      # Render the quality gate result (failed conditions + new-code measures +
+      # dashboard link) to the job summary — even when the gate failed above.
+      - name: Sonar quality gate summary
+        if: ${{ always() && env.SONAR_TOKEN != '' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set +e
+          base="${SONAR_HOST_URL%/}"
+          report=$(find . -path '*/build/sonar/report-task.txt' 2>/dev/null | head -1)
+          if [ -z "$report" ]; then
+            printf '## SonarQube Quality Gate\n\n_Summary unavailable (no analysis report found)._\n' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          key=$(sed -n 's/^projectKey=//p' "$report")
+          url=$(sed -n 's/^dashboardUrl=//p' "$report")
+          if [ -n "${PR_NUMBER:-}" ]; then scope="&pullRequest=$PR_NUMBER"; label="PR #$PR_NUMBER"; else scope=""; label="$GITHUB_REF_NAME"; fi
+          qg=$(curl -s -u "$SONAR_TOKEN:" "$base/api/qualitygates/project_status?projectKey=$key$scope")
+          ms=$(curl -s -u "$SONAR_TOKEN:" "$base/api/measures/component?component=$key$scope&metricKeys=new_violations,new_bugs,new_vulnerabilities,new_code_smells,new_security_hotspots,new_coverage,new_duplicated_lines_density")
+          status=$(printf '%s' "$qg" | jq -r '.projectStatus.status // "UNKNOWN"')
+          case "$status" in OK) badge="✅ Passed" ;; ERROR) badge="❌ Failed" ;; *) badge="⚠️ $status" ;; esac
+          LBL='def lbl: {"new_violations":"New issues","new_bugs":"New bugs","new_vulnerabilities":"New vulnerabilities","new_code_smells":"New code smells","new_security_hotspots":"New security hotspots","new_coverage":"Coverage on new code (%)","new_duplicated_lines_density":"Duplications on new code (%)"}[.] // .; def op: {"GT":">","LT":"<","GTE":"≥","LTE":"≤","EQ":"=","NE":"≠"}[.] // .;'
+          {
+            printf '## SonarQube Quality Gate — %s\n\n' "$badge"
+            printf '**Scope:** %s' "$label"
+            [ -n "$url" ] && printf ' &nbsp;·&nbsp; [View details on SonarQube](%s)' "$url"
+            printf '\n\n'
+            fc=$(printf '%s' "$qg" | jq -r "$LBL"'.projectStatus.conditions[]? | select(.status=="ERROR") | "| \(.metricKey|lbl) | \(.actualValue) | \(.comparator|op) \(.errorThreshold) |"')
+            if [ -n "$fc" ]; then
+              printf '**Failed conditions:**\n\n| Condition | Actual | Required |\n| --- | --- | --- |\n%s\n\n' "$fc"
+            fi
+            printf '**New-code measures:**\n\n| Metric | Value |\n| --- | --- |\n'
+            printf '%s' "$ms" | jq -r "$LBL"'(.component.measures // []) | sort_by(.metric)[] | "| \(.metric|lbl) | \((.period.value // .value)) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
