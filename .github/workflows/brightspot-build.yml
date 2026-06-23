@@ -33,13 +33,13 @@ on:
       java-version:
         description: 'Java version'
         required: false
-        default: '21'
+        default: '11'
         type: string
 
       node-version:
         description: 'Node version'
         required: false
-        default: '18.17.1'
+        default: '16.11.0'
         type: string
 
       cache-npm:
@@ -57,49 +57,6 @@ on:
         description: Platform to execute on
         type: string
         default: ubuntu-22.04-4core
-
-      sonar-inline-enabled:
-        description: >-
-          Run Sonar analysis inline, as a step in the build job (reusing the build's
-          compiled classes and test/coverage; requires java-version 17+). Default
-          false. For Sonar on a separate runner, call brightspot-sonar.yml as its own
-          job in the caller instead.
-        required: false
-        default: false
-        type: boolean
-
-      deploy:
-        description: >-
-          Where to deploy after the build: "aws", "gcp", or "none" (default). The
-          deploy runs as a job in parallel with Sonar (both only need `build`), so
-          Sonar never blocks or delays it.
-        required: false
-        default: 'none'
-        type: string
-
-      deploy-project:
-        description: 'Deploy: project shortname (passed to the cloud deploy as `project`).'
-        required: false
-        default: ''
-        type: string
-
-      deploy-repository:
-        description: 'Deploy: repository name (passed as `repository`; the deploy fills in a default when empty).'
-        required: false
-        default: ''
-        type: string
-
-      deploy-region:
-        description: 'Deploy (AWS only): region to deploy to (passed as `region`).'
-        required: false
-        default: ''
-        type: string
-
-      deploy-registry:
-        description: 'Deploy (GCP only): registry to push the image to (passed as `registry`).'
-        required: false
-        default: ''
-        type: string
 
       env1Name:
         description: Name for environment variable #1 (value is passed via secrets)
@@ -223,89 +180,6 @@ jobs:
         with:
           report_paths: '**/build/test-results/test/TEST-*.xml'
 
-      # Read the `sonar` custom property to drive the inline Sonar steps below
-      # (only when inline Sonar is enabled and the property is set).
-      - name: Read the `sonar` custom property
-        id: sonar-property
-        if: ${{ inputs.sonar-inline-enabled && inputs.build-gradle }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data } = await github.request('GET /repos/{owner}/{repo}/properties/values', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-            const property = data.find(p => p.property_name === 'sonar');
-            const value = property && property.value ? String(property.value) : '';
-            core.info(`sonar custom property: '${value}'`);
-            if (!value) {
-              core.warning("The 'sonar' custom property is not set on this repository; skipping Sonar. Contact an Admin to enable it.");
-            }
-            core.setOutput('value', value);
-
-      - name: Configure Sonar host and token from the `sonar` property
-        if: ${{ inputs.sonar-inline-enabled && steps.sonar-property.outputs.value != '' }}
-        env:
-          # The `sonar` property selects the SonarQube instance, e.g. 02 -> https://02.sonarqube.brightspot.tools/
-          INSTANCE: ${{ steps.sonar-property.outputs.value }}
-          # Dynamic secret SONAR_TOKEN_<instance>; the caller must use `secrets: inherit` for it to resolve.
-          SONAR_TOKEN_DYNAMIC: ${{ secrets[format('SONAR_TOKEN_{0}', steps.sonar-property.outputs.value)] }}
-        run: |
-          echo "SONAR_HOST_URL=https://${INSTANCE}.sonarqube.brightspot.tools/" >> "$GITHUB_ENV"
-          echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
-
-      # Inline Sonar (sonar-inline-enabled: true) — runs on the build runner, reusing
-      # the build's compiled output + coverage (no re-build). java-version must be
-      # 17+; a failure here (incl. a failing quality gate) fails the build job. For
-      # Sonar on a separate runner, call brightspot-sonar.yml as its own job.
-      - name: Inline Sonar analysis
-        if: ${{ inputs.sonar-inline-enabled && env.SONAR_TOKEN != '' }}
-        timeout-minutes: 20
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Reuses the compiled classes, tests, and coverage from the build above
-          # (no re-build). Uses this job's JDK — java-version must be 17+.
-          # qualitygate.wait makes this wait for (and fail on) the quality gate,
-          # up to 20 minutes.
-          ./gradlew sonar -i \
-            -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
-            -Dsonar.projectKey="perfectsense_${{ github.event.repository.name }}"
-
-      # Render the quality gate result to the build job summary — even on failure.
-      - name: Inline Sonar quality gate summary
-        if: ${{ always() && inputs.sonar-inline-enabled && env.SONAR_TOKEN != '' }}
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set +e
-          base="${SONAR_HOST_URL%/}"
-          report=$(find . -path '*/build/sonar/report-task.txt' 2>/dev/null | head -1)
-          if [ -z "$report" ]; then
-            printf '## SonarQube Quality Gate\n\n_Summary unavailable (no analysis report found)._\n' >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          key=$(sed -n 's/^projectKey=//p' "$report")
-          url=$(sed -n 's/^dashboardUrl=//p' "$report")
-          if [ -n "${PR_NUMBER:-}" ]; then scope="&pullRequest=$PR_NUMBER"; label="PR #$PR_NUMBER"; else scope=""; label="$GITHUB_REF_NAME"; fi
-          qg=$(curl -s -u "$SONAR_TOKEN:" "$base/api/qualitygates/project_status?projectKey=$key$scope")
-          ms=$(curl -s -u "$SONAR_TOKEN:" "$base/api/measures/component?component=$key$scope&metricKeys=new_violations,new_bugs,new_vulnerabilities,new_code_smells,new_security_hotspots,new_coverage,new_duplicated_lines_density")
-          status=$(printf '%s' "$qg" | jq -r '.projectStatus.status // "UNKNOWN"')
-          case "$status" in OK) badge="✅ Passed" ;; ERROR) badge="❌ Failed" ;; *) badge="⚠️ $status" ;; esac
-          LBL='def lbl: {"new_violations":"New issues","new_bugs":"New bugs","new_vulnerabilities":"New vulnerabilities","new_code_smells":"New code smells","new_security_hotspots":"New security hotspots","new_coverage":"Coverage on new code (%)","new_duplicated_lines_density":"Duplications on new code (%)"}[.] // .; def op: {"GT":">","LT":"<","GTE":"≥","LTE":"≤","EQ":"=","NE":"≠"}[.] // .;'
-          {
-            printf '## SonarQube Quality Gate — %s\n\n' "$badge"
-            printf '**Scope:** %s' "$label"
-            [ -n "$url" ] && printf ' &nbsp;·&nbsp; [View details on SonarQube](%s)' "$url"
-            printf '\n\n'
-            fc=$(printf '%s' "$qg" | jq -r "$LBL"'.projectStatus.conditions[]? | select(.status=="ERROR") | "| \(.metricKey|lbl) | \(.actualValue) | \(.comparator|op) \(.errorThreshold) |"')
-            if [ -n "$fc" ]; then
-              printf '**Failed conditions:**\n\n| Condition | Actual | Required |\n| --- | --- | --- |\n%s\n\n' "$fc"
-            fi
-            printf '**New-code measures:**\n\n| Metric | Value |\n| --- | --- |\n'
-            printf '%s' "$ms" | jq -r "$LBL"'(.component.measures // []) | sort_by(.metric)[] | "| \(.metric|lbl) | \((.period.value // .value)) |"'
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Store Build
         if: ${{ inputs.build-gradle || inputs.build-maven }}
         uses: actions/upload-artifact@v4
@@ -326,30 +200,3 @@ jobs:
             name: brightspot-version
             path: brightspot-version.txt
             retention-days: 2
-
-  # Deploy (deploy: 'aws'). Runs after `build`, consuming the `brightspot-build`
-  # artifact. Requires the caller to use `secrets: inherit` so the AWS / Ops Desk
-  # secrets resolve. deploy-project and deploy-region are required by the AWS deploy.
-  deploy-aws:
-    name: "Deploy (AWS)"
-    needs: build
-    if: ${{ inputs.deploy == 'aws' }}
-    uses: ./.github/workflows/aws-cloud-deploy.yml
-    secrets: inherit
-    with:
-      project: ${{ inputs.deploy-project }}
-      repository: ${{ inputs.deploy-repository }}
-      region: ${{ inputs.deploy-region }}
-
-  # Deploy (deploy: 'gcp'). Runs after `build`. Requires `secrets: inherit` for
-  # GCP_GCR_SECRET_KEY. deploy-project and deploy-registry are required by the GCP deploy.
-  deploy-gcp:
-    name: "Deploy (GCP)"
-    needs: build
-    if: ${{ inputs.deploy == 'gcp' }}
-    uses: ./.github/workflows/gcp-cloud-deploy.yml
-    secrets: inherit
-    with:
-      project: ${{ inputs.deploy-project }}
-      repository: ${{ inputs.deploy-repository }}
-      registry: ${{ inputs.deploy-registry }}
