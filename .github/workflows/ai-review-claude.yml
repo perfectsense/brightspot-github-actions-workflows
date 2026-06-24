@@ -53,6 +53,7 @@ jobs:
       - name: Review the code
         uses: anthropics/claude-code-action@v1
         with:
+          model: 'claude-sonnet-4-6'
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           track_progress: true
           prompt: |
