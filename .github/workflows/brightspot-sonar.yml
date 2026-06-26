@@ -75,7 +75,8 @@ jobs:
     name: "Sonar"
     # Dependabot can't read the dynamic token; the per-step guard below skips
     # repos that don't have the `sonar` property set.
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    # Org kill-switch: skip entirely when the SONAR_02_ENABLED variable is 'false'.
+    if: ${{ github.actor != 'dependabot[bot]' && vars.SONAR_02_ENABLED != 'false' }}
     # When fail-on-error is false (e.g. bundled into a build workflow), tolerate a
     # Sonar/infra failure so it can't fail the build and block the deploy.
     continue-on-error: ${{ !inputs.fail-on-error }}
