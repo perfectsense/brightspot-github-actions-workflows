@@ -22,8 +22,8 @@ name: 'Brightspot Sonar'
 #
 # Runs only when the repo has the `sonar` custom property set (e.g. `02`), which
 # selects the SonarQube instance and token. It is self-contained: it does its own
-# Gradle build so it doesn't depend on the build workflow's outputs — tests are
-# skipped (`-x test`) and styleguide screenshots are skipped
+# Gradle build so it doesn't depend on the build workflow's outputs — tests run so
+# Sonar gets coverage data, and styleguide screenshots are skipped
 # (`STYLEGUIDE_BUILD_OPTS=-s`); the warm Gradle remote cache keeps that fast.
 
 on:
@@ -162,11 +162,12 @@ jobs:
           STYLEGUIDE_BUILD_OPTS: -s
         run: |
           # Standalone job, so it builds the project itself (warm Gradle remote
-          # cache keeps it fast). Tests are skipped (-x test). Runs on the JDK from
-          # "Set up JDK" (inputs.java-version, default 21 — must be 17+ for the scanner).
+          # cache keeps it fast). Tests run so Sonar gets coverage data. Runs on the
+          # JDK from "Set up JDK" (inputs.java-version, default 21 — must be 17+ for
+          # the scanner).
           # qualitygate.wait makes this wait for (and fail on) the quality gate,
           # up to 20 minutes (qualitygate.timeout is in seconds).
-          ./gradlew build sonar -x test -i \
+          ./gradlew build sonar -i \
             -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
             -Dsonar.projectKey="${{ steps.project-key.outputs.value }}"
 
