@@ -64,7 +64,23 @@ on:
         default: true
         type: boolean
 
+      env1Name:
+        description: Name for environment variable #1 (value is passed via secrets)
+        type: string
+      env2Name:
+        description: Name for environment variable #2 (value is passed via secrets)
+        type: string
+      env3Name:
+        description: Name for environment variable #3 (value is passed via secrets)
+        type: string
+
     secrets:
+      ENV_1_VALUE:
+        required: false
+      ENV_2_VALUE:
+        required: false
+      ENV_3_VALUE:
+        required: false
       GRADLE_CACHE_USERNAME:
         required: false
       GRADLE_CACHE_PASSWORD:
