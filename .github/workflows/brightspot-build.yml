@@ -277,7 +277,7 @@ jobs:
           # up to 20 minutes.
           ./gradlew sonar -i \
             -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
-            -Dsonar.projectKey="perfectsense_${{ github.event.repository.name }}"
+            -Dsonar.projectKey="perfectsense:${{ github.event.repository.name }}"
 
       # Render the quality gate result to the build job summary — even on failure.
       - name: Inline Sonar quality gate summary
