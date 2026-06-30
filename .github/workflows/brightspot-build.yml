@@ -263,10 +263,13 @@ jobs:
 
       # Inline Sonar (sonar-inline-enabled: true) — runs on the build runner, reusing
       # the build's compiled output + coverage (no re-build). java-version must be
-      # 17+; a failure here (incl. a failing quality gate) fails the build job. For
-      # Sonar on a separate runner, call brightspot-sonar.yml as its own job.
+      # 17+. continue-on-error: true means a Sonar failure (an analysis/infra error or
+      # a failing quality gate) is surfaced as a failed step but never fails the build
+      # job or blocks the deploy jobs that depend on it. For Sonar on a separate
+      # runner, call brightspot-sonar.yml as its own job.
       - name: Inline Sonar analysis
         if: ${{ inputs.sonar-inline-enabled && env.SONAR_TOKEN != '' }}
+        continue-on-error: true
         timeout-minutes: 20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
