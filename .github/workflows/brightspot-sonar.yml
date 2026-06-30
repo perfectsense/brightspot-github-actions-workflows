@@ -54,6 +54,18 @@ on:
         required: false
         default: '21'
         type: string
+      build-java-version:
+        description: >-
+          JDK that runs the "Build project" step (compile/test/enhance). Defaults
+          to empty, meaning the build runs on java-version (the scanner JDK) — the
+          original single-JDK behavior. Set this to the JDK your build/deploy
+          workflow uses (e.g. '11') so the build step's Gradle cache keys match
+          those warm remote-cache entries and the bytecode-enhancement tasks are
+          reused instead of re-executed. The Sonar scan itself always runs on
+          java-version (which must be 17+).
+        required: false
+        default: ''
+        type: string
       node-version:
         description: 'Node version'
         required: false
@@ -172,12 +184,25 @@ jobs:
           node-version: ${{ inputs.node-version }}
 
       # The Sonar scanner requires Java 17+; java-version must therefore be 17+
-      # (defaults to 21). The build+analysis run on this JDK.
-      - name: Set up JDK
+      # (defaults to 21). The "Sonar analysis" step always runs on this JDK.
+      - name: Set up JDK (Sonar scanner)
+        id: setup-scanner-jdk
         if: ${{ steps.sonar-property.outputs.value != '' }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+
+      # Optional second JDK for the "Build project" step. When build-java-version is
+      # set, the build runs on this JDK instead of the scanner JDK so its Gradle
+      # build-cache keys (compile + bytecode enhancement) match the build/deploy
+      # workflow's warm remote cache and are reused rather than re-executed.
+      - name: Set up JDK (build)
+        id: setup-build-jdk
+        if: ${{ steps.sonar-property.outputs.value != '' && inputs.build-java-version != '' }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.build-java-version }}
           distribution: ${{ inputs.java-distribution }}
 
       - name: Setup Gradle
@@ -203,12 +228,17 @@ jobs:
       # Standalone job, so it builds the project itself. Kept as its own step (split
       # from the Sonar scan below) so the Gradle remote-cache hits are easy to see in
       # the log and the build vs. scan timings are reported separately. Tests run so
-      # Sonar gets coverage data. Runs on the JDK from "Set up JDK"
-      # (inputs.java-version, default 21 — must be 17+ for the scanner).
+      # Sonar gets coverage data. Runs on build-java-version when set (so its cache
+      # keys match the build/deploy workflow's warm cache), otherwise on the scanner
+      # JDK (inputs.java-version, default 21).
       - name: Build project
         if: ${{ env.SONAR_TOKEN != '' }}
         timeout-minutes: 20
         env:
+          # Build on build-java-version when set, else on the scanner JDK. Matching
+          # the build/deploy workflow's JDK keeps the remote build-cache warm so the
+          # bytecode-enhancement tasks are reused instead of re-run.
+          JAVA_HOME: ${{ steps.setup-build-jdk.outputs.path || steps.setup-scanner-jdk.outputs.path }}
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
           GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
           # Skip styleguide screenshot generation (slow) during the frontend build.
@@ -239,6 +269,9 @@ jobs:
         if: ${{ env.SONAR_TOKEN != '' }}
         timeout-minutes: 20
         env:
+          # The scanner requires Java 17+; always run it on the scanner JDK, even
+          # when the "Build project" step above ran on an older build-java-version.
+          JAVA_HOME: ${{ steps.setup-scanner-jdk.outputs.path }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
           GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
