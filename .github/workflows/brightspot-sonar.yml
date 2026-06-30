@@ -200,23 +200,20 @@ jobs:
         shell: bash
         run: echo "value=perfectsense:${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
 
-      - name: Sonar analysis
+      # Standalone job, so it builds the project itself. Kept as its own step (split
+      # from the Sonar scan below) so the Gradle remote-cache hits are easy to see in
+      # the log and the build vs. scan timings are reported separately. Tests run so
+      # Sonar gets coverage data. Runs on the JDK from "Set up JDK"
+      # (inputs.java-version, default 21 — must be 17+ for the scanner).
+      - name: Build project
         if: ${{ env.SONAR_TOKEN != '' }}
         timeout-minutes: 20
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
           GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
           # Skip styleguide screenshot generation (slow) during the frontend build.
           STYLEGUIDE_BUILD_OPTS: -s
         run: |
-          # Standalone job, so it builds the project itself (warm Gradle remote
-          # cache keeps it fast). Tests run so Sonar gets coverage data. Runs on the
-          # JDK from "Set up JDK" (inputs.java-version, default 21 — must be 17+ for
-          # the scanner).
-          # qualitygate.wait makes this wait for (and fail on) the quality gate,
-          # up to 20 minutes (qualitygate.timeout is in seconds).
-          #
           # Checkstyle is redundant here (Sonar reports style itself) and would fail
           # the build before analysis runs, so disable it via an init script. The
           # script disables any Checkstyle tasks that exist and is a harmless no-op on
@@ -230,8 +227,23 @@ jobs:
                   .each { it.enabled = false }
           }
           EOF
-          ./gradlew build sonar -i \
-            --init-script "${RUNNER_TEMP}/disable-checkstyle.gradle" \
+          ./gradlew build -i \
+            --init-script "${RUNNER_TEMP}/disable-checkstyle.gradle"
+
+      # Separate step so the scan time and quality-gate wait are distinct from the
+      # build. Reuses the build outputs above (compiled classes, test coverage),
+      # which are up to date, so this only runs the analysis.
+      # qualitygate.wait makes this wait for (and fail on) the quality gate, up to
+      # 20 minutes (qualitygate.timeout is in seconds).
+      - name: Sonar analysis
+        if: ${{ env.SONAR_TOKEN != '' }}
+        timeout-minutes: 20
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+          GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+        run: |
+          ./gradlew sonar -i \
             -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
             -Dsonar.projectKey="${{ steps.project-key.outputs.value }}"
 
