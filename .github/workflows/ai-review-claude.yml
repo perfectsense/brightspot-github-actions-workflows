@@ -89,16 +89,36 @@ jobs:
           claude_args: |
             --model claude-sonnet-4-6 --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
 
-      - name: Fail check if Claude requested changes
+      - name: Reconcile Claude review verdict
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
-          VERDICT=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
-            --jq '[.[] | select(.user.login == "github-actions[bot]")] | last | .state')
-          echo "Claude verdict: $VERDICT"
-          if [ "$VERDICT" = "CHANGES_REQUESTED" ]; then
+          # Claude posts reviews as claude[bot] when the Claude GitHub App is
+          # installed, otherwise as github-actions[bot]. Match either.
+          REVIEWS=$(gh api repos/$REPO/pulls/$PR/reviews --paginate \
+            --jq '[.[] | select(.user.login == "claude[bot]" or .user.login == "github-actions[bot]")]')
+
+          # Verdict reviews carry a body; the inline-comment reviews are bodyless.
+          LATEST_VERDICT=$(echo "$REVIEWS" \
+            | jq -r '[.[] | select(.body != null and .body != "")] | last | .state // ""')
+          echo "Latest Claude verdict: ${LATEST_VERDICT:-<none>}"
+
+          if [ "$LATEST_VERDICT" = "CHANGES_REQUESTED" ]; then
             echo "Claude requested changes — failing the status check"
             exit 1
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
+
+          # No required changes: dismiss any still-open change-request reviews so
+          # they stop blocking the merge. A neutral --comment review does NOT
+          # supersede a prior --request-changes on its own.
+          STALE=$(echo "$REVIEWS" | jq -r '.[] | select(.state == "CHANGES_REQUESTED") | .id')
+          for ID in $STALE; do
+            echo "Dismissing stale Claude change-request review $ID"
+            gh api -X PUT repos/$REPO/pulls/$PR/reviews/$ID/dismissals \
+              -f message="Superseded by Claude's latest review: no required changes." \
+              -f event="DISMISS"
+          done
           
