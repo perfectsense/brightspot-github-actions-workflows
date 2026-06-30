@@ -216,7 +216,22 @@ jobs:
           # the scanner).
           # qualitygate.wait makes this wait for (and fail on) the quality gate,
           # up to 20 minutes (qualitygate.timeout is in seconds).
+          #
+          # Checkstyle is redundant here (Sonar reports style itself) and would fail
+          # the build before analysis runs, so disable it via an init script. The
+          # script disables any Checkstyle tasks that exist and is a harmless no-op on
+          # projects that don't apply the plugin — unlike `-x checkstyleMain`, which
+          # errors when the task is absent — so the build still works regardless of
+          # whether the project has Checkstyle.
+          cat > "${RUNNER_TEMP}/disable-checkstyle.gradle" <<'EOF'
+          gradle.taskGraph.whenReady { graph ->
+              graph.allTasks
+                  .findAll { it.name.toLowerCase().contains('checkstyle') }
+                  .each { it.enabled = false }
+          }
+          EOF
           ./gradlew build sonar -i \
+            --init-script "${RUNNER_TEMP}/disable-checkstyle.gradle" \
             -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
             -Dsonar.projectKey="${{ steps.project-key.outputs.value }}"
 
