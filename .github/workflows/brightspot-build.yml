@@ -244,15 +244,22 @@ jobs:
             core.setOutput('value', value);
 
       - name: Configure Sonar host and token from the `sonar` property
-        if: ${{ inputs.sonar-inline-enabled && steps.sonar-property.outputs.value != '' }}
+        if: ${{ steps.sonar-property.outputs.value != '' }}
         env:
           # The `sonar` property selects the SonarQube instance, e.g. 02 -> https://02.sonarqube.brightspot.tools/
           INSTANCE: ${{ steps.sonar-property.outputs.value }}
-          # Dynamic secret SONAR_TOKEN_<instance>; the caller must use `secrets: inherit` for it to resolve.
+          # Fallback: dynamic secret SONAR_TOKEN_<instance>, which only resolves when
+          # the caller uses `secrets: inherit`.
           SONAR_TOKEN_DYNAMIC: ${{ secrets[format('SONAR_TOKEN_{0}', steps.sonar-property.outputs.value)] }}
         run: |
           echo "SONAR_HOST_URL=https://${INSTANCE}.sonarqube.brightspot.tools/" >> "$GITHUB_ENV"
-          echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
+          # SONAR_TOKEN may already be set by the "Set Environment Variables" step when
+          # the caller passes it through the generic env-var passthrough (e.g.
+          # env1Name=SONAR_TOKEN, ENV_1_VALUE=${{ secrets.SONAR_TOKEN_02 }}). Only fall
+          # back to the dynamic inherited secret when it wasn't supplied that way.
+          if [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
+          fi
 
       # Inline Sonar (sonar-inline-enabled: true) — runs on the build runner, reusing
       # the build's compiled output + coverage (no re-build). java-version must be
