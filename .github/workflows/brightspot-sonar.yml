@@ -1,0 +1,207 @@
+name: 'Brightspot Sonar'
+
+# Standalone, reusable Sonar analysis.
+#
+# Invoke it as its OWN top-level job in the caller, with `needs: build` so it
+# runs after the build (warm Gradle remote cache; skipped if the build fails) —
+# but keep `deploy` gated only on `build`, NOT on sonar, so Sonar never blocks
+# or delays the deploy and a failing quality gate can't fail the release:
+#
+#   jobs:
+#     build:
+#       uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-build.yml@v2
+#       secrets: inherit
+#     deploy:
+#       needs: build            # NOT sonar — deploy never waits on Sonar
+#       uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/aws-cloud-deploy.yml@v2
+#       secrets: inherit
+#     sonar:
+#       needs: build            # runs after build; reuses its warm Gradle cache
+#       uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-sonar.yml@v2
+#       secrets: inherit        # required so the dynamic SONAR_TOKEN_<instance> resolves
+#
+# Runs only when the repo has the `sonar` custom property set (e.g. `02`), which
+# selects the SonarQube instance and token. It is self-contained: it does its own
+# Gradle build so it doesn't depend on the build workflow's outputs — tests run so
+# Sonar gets coverage data, and styleguide screenshots are skipped
+# (`STYLEGUIDE_BUILD_OPTS=-s`); the warm Gradle remote cache keeps that fast.
+
+on:
+  workflow_call:
+    inputs:
+      java-distribution:
+        description: 'Java distribution'
+        required: false
+        default: 'temurin'
+        type: string
+      java-version:
+        description: 'Java version'
+        required: false
+        default: '21'
+        type: string
+      node-version:
+        description: 'Node version'
+        required: false
+        default: '18.17.1'
+        type: string
+      gradle-action-cache-disable:
+        description: 'Enable only if not using Gradle Remote Cache'
+        required: false
+        default: true
+        type: boolean
+      runs-on:
+        description: Platform to execute on
+        type: string
+        default: sonar-ubuntu-22.04-4core
+
+      fail-on-error:
+        description: >-
+          Fail the workflow when the Sonar analysis itself errors. Keep true for a
+          standalone job (failures stay visible and don't block deploy, since
+          deploy needn't depend on it). Set false when bundling into a build
+          workflow so a Sonar/infra failure can't fail the build and block deploy.
+        required: false
+        default: true
+        type: boolean
+
+    secrets:
+      GRADLE_CACHE_USERNAME:
+        required: false
+      GRADLE_CACHE_PASSWORD:
+        required: false
+
+jobs:
+  sonar:
+    name: "Sonar"
+    # Dependabot can't read the dynamic token; the per-step guard below skips
+    # repos that don't have the `sonar` property set.
+    # Org kill-switch: skip entirely when the SONAR_02_ENABLED variable is 'false'.
+    if: ${{ github.actor != 'dependabot[bot]' && vars.SONAR_02_ENABLED != 'false' }}
+    # When fail-on-error is false (e.g. bundled into a build workflow), tolerate a
+    # Sonar/infra failure so it can't fail the build and block the deploy.
+    continue-on-error: ${{ !inputs.fail-on-error }}
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Read the `sonar` custom property
+        id: sonar-property
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.request('GET /repos/{owner}/{repo}/properties/values', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const property = data.find(p => p.property_name === 'sonar');
+            const value = property && property.value ? String(property.value) : '';
+            core.info(`sonar custom property: '${value}'`);
+            if (!value) {
+              core.warning("The 'sonar' custom property is not set on this repository; skipping Sonar. Contact an Admin to enable it.");
+            }
+            core.setOutput('value', value);
+
+      - name: Configure Sonar host and token from the `sonar` property
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        env:
+          # The `sonar` property selects the SonarQube instance, e.g. 02 -> https://02.sonarqube.brightspot.tools/
+          INSTANCE: ${{ steps.sonar-property.outputs.value }}
+          # Dynamic secret SONAR_TOKEN_<instance>; the caller must use `secrets: inherit` for it to resolve.
+          SONAR_TOKEN_DYNAMIC: ${{ secrets[format('SONAR_TOKEN_{0}', steps.sonar-property.outputs.value)] }}
+        run: |
+          echo "SONAR_HOST_URL=https://${INSTANCE}.sonarqube.brightspot.tools/" >> "$GITHUB_ENV"
+          echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        with:
+          lfs: true
+          fetch-depth: 0  # Full history for better Sonar relevancy (blame, new-code detection)
+
+      - name: Setup Node
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # The Sonar scanner requires Java 17+; java-version must therefore be 17+
+      # (defaults to 21). The build+analysis run on this JDK.
+      - name: Set up JDK
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+
+      - name: Setup Gradle
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: ${{ inputs.gradle-action-cache-disable }}
+
+      - name: Cache Sonar packages
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Determine Sonar project key
+        id: project-key
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        shell: bash
+        run: echo "value=perfectsense:${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Sonar analysis
+        if: ${{ env.SONAR_TOKEN != '' }}
+        timeout-minutes: 20
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+          GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+          # Skip styleguide screenshot generation (slow) during the frontend build.
+          STYLEGUIDE_BUILD_OPTS: -s
+        run: |
+          # Standalone job, so it builds the project itself (warm Gradle remote
+          # cache keeps it fast). Tests run so Sonar gets coverage data. Runs on the
+          # JDK from "Set up JDK" (inputs.java-version, default 21 — must be 17+ for
+          # the scanner).
+          # qualitygate.wait makes this wait for (and fail on) the quality gate,
+          # up to 20 minutes (qualitygate.timeout is in seconds).
+          ./gradlew build sonar -i \
+            -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
+            -Dsonar.projectKey="${{ steps.project-key.outputs.value }}"
+
+      # Render the quality gate result (failed conditions + new-code measures +
+      # dashboard link) to the job summary — even when the gate failed above.
+      - name: Sonar quality gate summary
+        if: ${{ always() && env.SONAR_TOKEN != '' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set +e
+          base="${SONAR_HOST_URL%/}"
+          report=$(find . -path '*/build/sonar/report-task.txt' 2>/dev/null | head -1)
+          if [ -z "$report" ]; then
+            printf '## SonarQube Quality Gate\n\n_Summary unavailable (no analysis report found)._\n' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          key=$(sed -n 's/^projectKey=//p' "$report")
+          url=$(sed -n 's/^dashboardUrl=//p' "$report")
+          if [ -n "${PR_NUMBER:-}" ]; then scope="&pullRequest=$PR_NUMBER"; label="PR #$PR_NUMBER"; else scope=""; label="$GITHUB_REF_NAME"; fi
+          qg=$(curl -s -u "$SONAR_TOKEN:" "$base/api/qualitygates/project_status?projectKey=$key$scope")
+          ms=$(curl -s -u "$SONAR_TOKEN:" "$base/api/measures/component?component=$key$scope&metricKeys=new_violations,new_bugs,new_vulnerabilities,new_code_smells,new_security_hotspots,new_coverage,new_duplicated_lines_density")
+          status=$(printf '%s' "$qg" | jq -r '.projectStatus.status // "UNKNOWN"')
+          case "$status" in OK) badge="✅ Passed" ;; ERROR) badge="❌ Failed" ;; *) badge="⚠️ $status" ;; esac
+          LBL='def lbl: {"new_violations":"New issues","new_bugs":"New bugs","new_vulnerabilities":"New vulnerabilities","new_code_smells":"New code smells","new_security_hotspots":"New security hotspots","new_coverage":"Coverage on new code (%)","new_duplicated_lines_density":"Duplications on new code (%)"}[.] // .; def op: {"GT":">","LT":"<","GTE":"≥","LTE":"≤","EQ":"=","NE":"≠"}[.] // .;'
+          {
+            printf '## SonarQube Quality Gate — %s\n\n' "$badge"
+            printf '**Scope:** %s' "$label"
+            [ -n "$url" ] && printf ' &nbsp;·&nbsp; [View details on SonarQube](%s)' "$url"
+            printf '\n\n'
+            fc=$(printf '%s' "$qg" | jq -r "$LBL"'.projectStatus.conditions[]? | select(.status=="ERROR") | "| \(.metricKey|lbl) | \(.actualValue) | \(.comparator|op) \(.errorThreshold) |"')
+            if [ -n "$fc" ]; then
+              printf '**Failed conditions:**\n\n| Condition | Actual | Required |\n| --- | --- | --- |\n%s\n\n' "$fc"
+            fi
+            printf '**New-code measures:**\n\n| Metric | Value |\n| --- | --- |\n'
+            printf '%s' "$ms" | jq -r "$LBL"'(.component.measures // []) | sort_by(.metric)[] | "| \(.metric|lbl) | \((.period.value // .value)) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
