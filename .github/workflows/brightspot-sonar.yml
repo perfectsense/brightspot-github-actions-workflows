@@ -20,6 +20,21 @@ name: 'Brightspot Sonar'
 #       uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-sonar.yml@v2
 #       secrets: inherit        # required so the dynamic SONAR_TOKEN_<instance> resolves
 #
+# Token: by default the dynamic SONAR_TOKEN_<instance> secret resolves only under
+# `secrets: inherit`. A caller that can't use `secrets: inherit` (e.g. it needs an
+# explicit `secrets:` map to pass other values) can instead supply the token through
+# the generic env-var passthrough, which takes precedence over the dynamic secret:
+#
+#     sonar:
+#       needs: build
+#       uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-sonar.yml@v2
+#       secrets:
+#         ENV_1_VALUE: ${{ secrets.SONAR_TOKEN_02 }}
+#         GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+#         GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+#       with:
+#         env1Name: SONAR_TOKEN
+#
 # Runs only when the repo has the `sonar` custom property set (e.g. `02`), which
 # selects the SonarQube instance and token. It is self-contained: it does its own
 # Gradle build so it doesn't depend on the build workflow's outputs — tests run so
@@ -98,6 +113,17 @@ jobs:
     continue-on-error: ${{ !inputs.fail-on-error }}
     runs-on: ${{ inputs.runs-on }}
     steps:
+      - name: Set Environment Variables
+        run: |
+          if [ -n "${{ inputs.env1Name }}" ]; then
+            echo "${{ inputs.env1Name }}=${{ secrets.ENV_1_VALUE }}" >> $GITHUB_ENV
+          fi
+          if [ -n "${{ inputs.env2Name }}" ]; then
+            echo "${{ inputs.env2Name }}=${{ secrets.ENV_2_VALUE }}" >> $GITHUB_ENV
+          fi
+          if [ -n "${{ inputs.env3Name }}" ]; then
+            echo "${{ inputs.env3Name }}=${{ secrets.ENV_3_VALUE }}" >> $GITHUB_ENV
+          fi
       - name: Read the `sonar` custom property
         id: sonar-property
         uses: actions/github-script@v7
@@ -120,11 +146,18 @@ jobs:
         env:
           # The `sonar` property selects the SonarQube instance, e.g. 02 -> https://02.sonarqube.brightspot.tools/
           INSTANCE: ${{ steps.sonar-property.outputs.value }}
-          # Dynamic secret SONAR_TOKEN_<instance>; the caller must use `secrets: inherit` for it to resolve.
+          # Fallback: dynamic secret SONAR_TOKEN_<instance>, which only resolves when
+          # the caller uses `secrets: inherit`.
           SONAR_TOKEN_DYNAMIC: ${{ secrets[format('SONAR_TOKEN_{0}', steps.sonar-property.outputs.value)] }}
         run: |
           echo "SONAR_HOST_URL=https://${INSTANCE}.sonarqube.brightspot.tools/" >> "$GITHUB_ENV"
-          echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
+          # SONAR_TOKEN may already be set by the "Set Environment Variables" step when
+          # the caller passes it through the generic env-var passthrough (e.g.
+          # env1Name=SONAR_TOKEN, ENV_1_VALUE=${{ secrets.SONAR_TOKEN_02 }}). Only fall
+          # back to the dynamic inherited secret when it wasn't supplied that way.
+          if [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
+          fi
 
       - uses: actions/checkout@v4
         if: ${{ steps.sonar-property.outputs.value != '' }}
