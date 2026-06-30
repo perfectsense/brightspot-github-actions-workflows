@@ -149,7 +149,7 @@ jobs:
         id: project-key
         if: ${{ steps.sonar-property.outputs.value != '' }}
         shell: bash
-        run: echo "value=perfectsense_${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+        run: echo "value=perfectsense:${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
 
       - name: Sonar analysis
         if: ${{ env.SONAR_TOKEN != '' }}
