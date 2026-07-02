@@ -312,8 +312,9 @@ jobs:
       # identical, and the build reuses the build job's warm cache (including the
       # already-instrumented test results, so coverage comes from cache). Runs on the
       # build JDK; tests run so Sonar gets coverage. The extra args (`build`, `-i`,
-      # the Checkstyle init script) and DISABLE_BUILD_SCAN are all cache-neutral, so
-      # they don't diverge the keys from the build job's `./gradlew` invocation.
+      # the Checkstyle init script) are cache-neutral, so they don't diverge the keys
+      # from the build job's `./gradlew` invocation. Publishes a build scan like the
+      # build job — handy for inspecting per-task cache hit/miss and where time goes.
       - name: Build with Gradle
         if: ${{ env.SONAR_TOKEN != '' }}
         timeout-minutes: 20
@@ -322,8 +323,6 @@ jobs:
           JAVA_HOME: ${{ steps.setup-build-jdk.outputs.path || steps.setup-scanner-jdk.outputs.path }}
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
           GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-          # Sonar doesn't need to publish a build scan (cache-neutral either way).
-          DISABLE_BUILD_SCAN: 'true'
           # Same params the caller passes to brightspot-build.yml, plus the (cache-
           # neutral) Sonar extras. build-gradle.sh appends the version -P flags.
           GRADLE_PARAMS: ${{ inputs.gradle-params }} build -i --init-script ${{ runner.temp }}/disable-checkstyle.gradle
