@@ -40,8 +40,8 @@ name: 'Brightspot Sonar'
 # Gradle build (tests run so Sonar gets coverage data). To keep that fast, its build
 # steps mirror brightspot-build.yml exactly — same steps, same build-gradle.sh, same
 # version stamping — so a caller that uses both workflows gets identical Gradle cache
-# keys and this build reuses the build job's warm remote cache. Set build-java-version
-# to your build workflow's java-version so the JDK-sensitive keys line up too.
+# keys and this build reuses the build job's warm remote cache. java-version is the
+# build JDK (matches brightspot-build.yml); the scanner uses sonar-java-version.
 
 on:
   workflow_call:
@@ -51,22 +51,27 @@ on:
         required: false
         default: 'temurin'
         type: string
+      # NOTE: keep this default in sync with brightspot-build.yml's java-version so a
+      # caller that uses both workflows with defaults builds on the same JDK in each
+      # and the Gradle cache keys match.
       java-version:
-        description: 'Java version'
+        description: >-
+          JDK that runs the "Build with Gradle" step (compile/test/enhance). Same
+          meaning and default (11) as brightspot-build.yml's java-version, so a
+          caller using both workflows with defaults gets matching Gradle cache keys
+          and this build reuses the build job's warm remote cache. If your build
+          workflow overrides java-version, set the same value here. The Sonar scan
+          itself runs on sonar-java-version, not this. Set to '' to build on
+          sonar-java-version instead.
+        required: false
+        default: '11'
+        type: string
+      sonar-java-version:
+        description: >-
+          Java version for the Sonar scanner only (must be 17+; defaults to 21). The
+          scan may run on a newer JDK than the build, which uses java-version.
         required: false
         default: '21'
-        type: string
-      build-java-version:
-        description: >-
-          JDK that runs the "Build with Gradle" step (compile/test/enhance). Defaults
-          to empty, meaning the build runs on java-version (the scanner JDK) — the
-          original single-JDK behavior. Set this to the JDK your build/deploy
-          workflow uses (e.g. '11') so the build step's Gradle cache keys match
-          those warm remote-cache entries and the bytecode-enhancement tasks are
-          reused instead of re-executed. The Sonar scan itself always runs on
-          java-version (which must be 17+).
-        required: false
-        default: ''
         type: string
       # NOTE: keep this default in sync with brightspot-build.yml so a caller that
       # relies on the default builds the frontend the same way in both workflows.
@@ -198,7 +203,7 @@ jobs:
       #     build-gradle.sh --unshallow's the build job too, so the computed version
       #     (and thus the keys) still match.
       #   * a second JDK (scanner, 17+) is set up for "Sonar analysis"; the build
-      #     itself runs on build-java-version to match the build job's JDK.
+      #     itself runs on java-version to match the build job's JDK.
       # ───────────────────────────────────────────────────────────────────────────
       - uses: actions/checkout@v4
         if: ${{ steps.sonar-property.outputs.value != '' }}
@@ -216,27 +221,26 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      # Sonar-only: the scanner requires Java 17+ (java-version, default 21). The
-      # "Sonar analysis" step always runs on this JDK. (brightspot-build.yml sets up
-      # a single JDK; here the scan runs on this one and the build on the one below.)
+      # Sonar-only: the scanner requires Java 17+ (sonar-java-version, default 21).
+      # The "Sonar analysis" step always runs on this JDK. (brightspot-build.yml sets
+      # up a single JDK; here the scan runs on this one and the build on the one below.)
       - name: Set up JDK (Sonar scanner)
         id: setup-scanner-jdk
         if: ${{ steps.sonar-property.outputs.value != '' }}
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ inputs.java-version }}
+          java-version: ${{ inputs.sonar-java-version }}
           distribution: ${{ inputs.java-distribution }}
 
       # This is the brightspot-build.yml "Set up JDK" equivalent: the build runs on
-      # build-java-version (set it to your build workflow's java-version, e.g. '11')
-      # so compile/enhancement/test cache keys line up. Falls back to the scanner JDK
-      # when unset.
+      # java-version (same as your build workflow, default 11) so compile/enhancement/
+      # test cache keys line up. Falls back to the scanner JDK when set to ''.
       - name: Set up JDK (build)
         id: setup-build-jdk
-        if: ${{ steps.sonar-property.outputs.value != '' && inputs.build-java-version != '' }}
+        if: ${{ steps.sonar-property.outputs.value != '' && inputs.java-version != '' }}
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ inputs.build-java-version }}
+          java-version: ${{ inputs.java-version }}
           distribution: ${{ inputs.java-distribution }}
 
       - name: Setup Gradle
@@ -335,7 +339,7 @@ jobs:
         timeout-minutes: 20
         env:
           # The scanner requires Java 17+; always run it on the scanner JDK, even
-          # when the "Build with Gradle" step above ran on an older build-java-version.
+          # when the "Build with Gradle" step above ran on an older java-version.
           JAVA_HOME: ${{ steps.setup-scanner-jdk.outputs.path }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
