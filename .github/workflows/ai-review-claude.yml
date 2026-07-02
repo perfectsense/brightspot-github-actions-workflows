@@ -70,7 +70,10 @@ jobs:
             - Follow the project conventions defined in CLAUDE.md and the .ai/ guides
             - Focus only on the PR diff using `gh pr diff` to see the changes — do not comment on pre-existing issues outside the change
             - Only comment on substantive issues — skip minor style nits. Limit to the most important findings
-            - Check existing PR comments before posting to avoid duplicates on re-reviews
+            - The existing PR comments and prior review threads should already be in your context for this run — treat that conversation as the authoritative history of what has already been discussed (use `gh pr view --comments` to re-check if needed)
+            - If a finding — yours or another reviewer's — has already been raised on this PR and a maintainer has replied to it, do NOT post it again. Do not rephrase it, escalate its severity, re-open it, or split it into a "new" finding on a later push. State a given concern at most ONCE across the life of the PR, then move on
+            - You may disagree with a maintainer's reply, but make that case only once in the existing thread — never repeat the same point on subsequent runs
+            - The only exception: the code at that location has materially changed since the maintainer replied. In that case you may comment on the changed code, referencing the prior discussion
 
             When commenting:
             - Use `gh pr comment` for top-level feedback
