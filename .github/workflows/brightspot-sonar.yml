@@ -37,9 +37,11 @@ name: 'Brightspot Sonar'
 #
 # Runs only when the repo has the `sonar` custom property set (e.g. `02`), which
 # selects the SonarQube instance and token. It is self-contained: it does its own
-# Gradle build so it doesn't depend on the build workflow's outputs — tests run so
-# Sonar gets coverage data, and styleguide screenshots are skipped
-# (`STYLEGUIDE_BUILD_OPTS=-s`); the warm Gradle remote cache keeps that fast.
+# Gradle build (tests run so Sonar gets coverage data). To keep that fast, its build
+# steps mirror brightspot-build.yml exactly — same steps, same build-gradle.sh, same
+# version stamping — so a caller that uses both workflows gets identical Gradle cache
+# keys and this build reuses the build job's warm remote cache. Set build-java-version
+# to your build workflow's java-version so the JDK-sensitive keys line up too.
 
 on:
   workflow_call:
@@ -56,7 +58,7 @@ on:
         type: string
       build-java-version:
         description: >-
-          JDK that runs the "Build project" step (compile/test/enhance). Defaults
+          JDK that runs the "Build with Gradle" step (compile/test/enhance). Defaults
           to empty, meaning the build runs on java-version (the scanner JDK) — the
           original single-JDK behavior. Set this to the JDK your build/deploy
           workflow uses (e.g. '11') so the build step's Gradle cache keys match
@@ -66,11 +68,23 @@ on:
         required: false
         default: ''
         type: string
+      # NOTE: keep this default in sync with brightspot-build.yml so a caller that
+      # relies on the default builds the frontend the same way in both workflows.
       node-version:
         description: 'Node version'
         required: false
-        default: '18.17.1'
+        default: '16.11.0'
         type: string
+      gradle-params:
+        description: >-
+          Extra parameters to pass to the Gradle command. Pass the SAME value here
+          as to brightspot-build.yml so both builds are identical and share cache.
+        required: false
+        type: string
+      cache-npm:
+        description: 'Cache NPM'
+        default: true
+        type: boolean
       gradle-action-cache-disable:
         description: 'Enable only if not using Gradle Remote Cache'
         required: false
@@ -171,11 +185,30 @@ jobs:
             echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
           fi
 
+      # ───────────────────────────────────────────────────────────────────────────
+      # BEGIN: mirror of brightspot-build.yml's build steps.
+      # These steps MUST stay identical to the corresponding steps in
+      # brightspot-build.yml so a caller that uses BOTH workflows (e.g. golfchannel)
+      # produces the SAME Gradle cache keys (compile, bytecode enhancement, tests)
+      # and the Sonar build reuses the build job's warm remote cache instead of
+      # redoing the work. If you change a build step there, change it here too.
+      # The only Sonar-specific deltas below are cache-neutral (they don't change any
+      # task's cache key) and are called out inline:
+      #   * checkout fetch-depth: 0 — Sonar needs full history for blame/new-code;
+      #     build-gradle.sh --unshallow's the build job too, so the computed version
+      #     (and thus the keys) still match.
+      #   * a second JDK (scanner, 17+) is set up for "Sonar analysis"; the build
+      #     itself runs on build-java-version to match the build job's JDK.
+      # ───────────────────────────────────────────────────────────────────────────
       - uses: actions/checkout@v4
         if: ${{ steps.sonar-property.outputs.value != '' }}
         with:
           lfs: true
-          fetch-depth: 0  # Full history for better Sonar relevancy (blame, new-code detection)
+          fetch-depth: 0  # Sonar-only: full history for blame / new-code detection
+
+      - name: Validate Gradle wrapper JAR files
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        uses: gradle/actions/wrapper-validation@v4
 
       - name: Setup Node
         if: ${{ steps.sonar-property.outputs.value != '' }}
@@ -183,8 +216,9 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      # The Sonar scanner requires Java 17+; java-version must therefore be 17+
-      # (defaults to 21). The "Sonar analysis" step always runs on this JDK.
+      # Sonar-only: the scanner requires Java 17+ (java-version, default 21). The
+      # "Sonar analysis" step always runs on this JDK. (brightspot-build.yml sets up
+      # a single JDK; here the scan runs on this one and the build on the one below.)
       - name: Set up JDK (Sonar scanner)
         id: setup-scanner-jdk
         if: ${{ steps.sonar-property.outputs.value != '' }}
@@ -193,10 +227,10 @@ jobs:
           java-version: ${{ inputs.java-version }}
           distribution: ${{ inputs.java-distribution }}
 
-      # Optional second JDK for the "Build project" step. When build-java-version is
-      # set, the build runs on this JDK instead of the scanner JDK so its Gradle
-      # build-cache keys (compile + bytecode enhancement) match the build/deploy
-      # workflow's warm remote cache and are reused rather than re-executed.
+      # This is the brightspot-build.yml "Set up JDK" equivalent: the build runs on
+      # build-java-version (set it to your build workflow's java-version, e.g. '11')
+      # so compile/enhancement/test cache keys line up. Falls back to the scanner JDK
+      # when unset.
       - name: Set up JDK (build)
         id: setup-build-jdk
         if: ${{ steps.sonar-property.outputs.value != '' && inputs.build-java-version != '' }}
@@ -210,6 +244,33 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-disabled: ${{ inputs.gradle-action-cache-disable }}
+
+      - name: Get Tag Version
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        shell: bash
+        run: |
+          echo "GITHUB_ACTIONS_TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "GITHUB_ACTIONS_PULL_REQUEST=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        if: ${{ steps.sonar-property.outputs.value != '' }}
+        with:
+          repository: perfectsense/brightspot-github-actions-workflows
+          ref: v2
+          path: ./brightspot
+
+      - name: NPM Cache
+        if: ${{ steps.sonar-property.outputs.value != '' && inputs.cache-npm }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.yarn/cache
+            ~/.config/yarn/global
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+      # END: mirror of brightspot-build.yml's build steps. ───────────────────────
 
       - name: Cache Sonar packages
         if: ${{ steps.sonar-property.outputs.value != '' }}
@@ -225,31 +286,15 @@ jobs:
         shell: bash
         run: echo "value=perfectsense:${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
 
-      # Standalone job, so it builds the project itself. Kept as its own step (split
-      # from the Sonar scan below) so the Gradle remote-cache hits are easy to see in
-      # the log and the build vs. scan timings are reported separately. Tests run so
-      # Sonar gets coverage data. Runs on build-java-version when set (so its cache
-      # keys match the build/deploy workflow's warm cache), otherwise on the scanner
-      # JDK (inputs.java-version, default 21).
-      - name: Build project
+      # Sonar-only: disable Checkstyle (Sonar reports style itself) so a Checkstyle
+      # failure can't fail the build before analysis runs. Applied via an init script
+      # that disables any Checkstyle task that exists — a harmless no-op otherwise,
+      # and cache-neutral: disabling a task doesn't change the cache keys of the
+      # compile/enhancement/test tasks.
+      - name: Prepare Checkstyle-disable init script
         if: ${{ env.SONAR_TOKEN != '' }}
-        timeout-minutes: 20
-        env:
-          # Build on build-java-version when set, else on the scanner JDK. Matching
-          # the build/deploy workflow's JDK keeps the remote build-cache warm so the
-          # bytecode-enhancement tasks are reused instead of re-run.
-          JAVA_HOME: ${{ steps.setup-build-jdk.outputs.path || steps.setup-scanner-jdk.outputs.path }}
-          GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
-          GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-          # Skip styleguide screenshot generation (slow) during the frontend build.
-          STYLEGUIDE_BUILD_OPTS: -s
+        shell: bash
         run: |
-          # Checkstyle is redundant here (Sonar reports style itself) and would fail
-          # the build before analysis runs, so disable it via an init script. The
-          # script disables any Checkstyle tasks that exist and is a harmless no-op on
-          # projects that don't apply the plugin — unlike `-x checkstyleMain`, which
-          # errors when the task is absent — so the build still works regardless of
-          # whether the project has Checkstyle.
           cat > "${RUNNER_TEMP}/disable-checkstyle.gradle" <<'EOF'
           gradle.taskGraph.whenReady { graph ->
               graph.allTasks
@@ -257,8 +302,28 @@ jobs:
                   .each { it.enabled = false }
           }
           EOF
-          ./gradlew build -i \
-            --init-script "${RUNNER_TEMP}/disable-checkstyle.gradle"
+
+      # Build via the SAME build-gradle.sh the build job uses so the version stamping
+      # (PR<n> / tag / git-describe+run) — and therefore the cache keys — are
+      # identical, and the build reuses the build job's warm cache (including the
+      # already-instrumented test results, so coverage comes from cache). Runs on the
+      # build JDK; tests run so Sonar gets coverage. The extra args (`build`, `-i`,
+      # the Checkstyle init script) and DISABLE_BUILD_SCAN are all cache-neutral, so
+      # they don't diverge the keys from the build job's `./gradlew` invocation.
+      - name: Build with Gradle
+        if: ${{ env.SONAR_TOKEN != '' }}
+        timeout-minutes: 20
+        shell: bash
+        env:
+          JAVA_HOME: ${{ steps.setup-build-jdk.outputs.path || steps.setup-scanner-jdk.outputs.path }}
+          GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+          GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+          # Sonar doesn't need to publish a build scan (cache-neutral either way).
+          DISABLE_BUILD_SCAN: 'true'
+          # Same params the caller passes to brightspot-build.yml, plus the (cache-
+          # neutral) Sonar extras. build-gradle.sh appends the version -P flags.
+          GRADLE_PARAMS: ${{ inputs.gradle-params }} build -i --init-script ${{ runner.temp }}/disable-checkstyle.gradle
+        run: ./brightspot/brightspot/build-gradle.sh
 
       # Separate step so the scan time and quality-gate wait are distinct from the
       # build. Reuses the build outputs above (compiled classes, test coverage),
@@ -270,7 +335,7 @@ jobs:
         timeout-minutes: 20
         env:
           # The scanner requires Java 17+; always run it on the scanner JDK, even
-          # when the "Build project" step above ran on an older build-java-version.
+          # when the "Build with Gradle" step above ran on an older build-java-version.
           JAVA_HOME: ${{ steps.setup-scanner-jdk.outputs.path }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
