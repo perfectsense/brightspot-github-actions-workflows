@@ -18,10 +18,14 @@ on:
         required: false
         type: string
 
+      # NOTE: this is complementary to the Gradle remote build cache. The remote cache
+      # stores task outputs; this one stores the Gradle User Home (wrapper distribution,
+      # dependency jars, compiled build scripts) and configuration-cache data, which the
+      # remote cache never covers. Keep it enabled even when using the remote cache.
       gradle-action-cache-disable:
-        description: 'Enable only if not using Gradle Remote Cache'
+        description: 'Disable the setup-gradle GitHub Actions cache (Gradle User Home + configuration-cache data)'
         required: false
-        default: true
+        default: false
         type: boolean
 
       java-distribution:
@@ -79,6 +83,12 @@ on:
         required: false
       GRADLE_CACHE_PASSWORD:
         required: false
+      # AES key (e.g. `openssl rand -base64 16`) used by setup-gradle to encrypt
+      # configuration-cache data before storing it in the GitHub Actions cache.
+      # Without it, configuration-cache data is not saved between runs (the rest of
+      # the Gradle User Home still is).
+      GRADLE_ENCRYPTION_KEY:
+        required: false
 
 jobs:
   build:
@@ -126,6 +136,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-disabled: ${{ inputs.gradle-action-cache-disable }}
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Get Tag Version
         shell: bash
