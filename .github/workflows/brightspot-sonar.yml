@@ -100,6 +100,19 @@ on:
         required: false
         default: false
         type: boolean
+
+      # Controls setup-gradle's cache-read-only. setup-gradle's own default only WRITES
+      # the cache from the repo's default branch, so feature/PR branches never persist a
+      # Gradle User Home or configuration-cache entry between runs. Leave empty for the
+      # repo-standard behaviour: read-write on the default branch AND release/* branches
+      # (so they seed the cache), read-only elsewhere. Pass 'false' to force cache writes
+      # on any branch — e.g. to validate configuration-cache reuse on a feature branch —
+      # or 'true' to force read-only.
+      gradle-cache-read-only:
+        description: "setup-gradle cache-read-only: '' = auto (write from default & release/* branches), or 'true'/'false' to force"
+        required: false
+        default: ''
+        type: string
       runs-on:
         description: Platform to execute on
         type: string
@@ -260,6 +273,8 @@ jobs:
         with:
           cache-disabled: ${{ inputs.gradle-action-cache-disable }}
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          # Explicit override wins; empty falls back to write-from-default-&-release/*, read-only elsewhere.
+          cache-read-only: ${{ inputs.gradle-cache-read-only != '' && inputs.gradle-cache-read-only || (github.ref_name != github.event.repository.default_branch && !startsWith(github.ref, 'refs/heads/release/')) }}
 
       - name: Get Tag Version
         if: ${{ steps.sonar-property.outputs.value != '' }}
