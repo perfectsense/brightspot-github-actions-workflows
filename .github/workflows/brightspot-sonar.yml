@@ -276,9 +276,15 @@ jobs:
           GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
           GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
         run: |
+          # Pass the host as a -D system property, not just the SONAR_HOST_URL env
+          # var: the scanner treats the env var as a default only, so it loses to a
+          # sonar.host.url hardcoded in a project's build script (e.g. the SonarCloud
+          # host set by express-sonarqube.gradle or com.brightspot.gradle 3.x plugin
+          # projects). System properties are applied last and always win.
           ./gradlew sonar -i \
             -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
-            -Dsonar.projectKey="${{ steps.project-key.outputs.value }}"
+            -Dsonar.projectKey="${{ steps.project-key.outputs.value }}" \
+            -Dsonar.host.url="${SONAR_HOST_URL}"
 
       # Render the quality gate result (failed conditions + new-code measures +
       # dashboard link) to the job summary — even when the gate failed above.
