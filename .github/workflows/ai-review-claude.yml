@@ -1,19 +1,35 @@
 name: AI Review (Claude)
 
-on:
-  push:
-    branches:
-      - develop
-      - main
-      - release/*
-    tags: v*
+# Reusable Claude PR-review workflow. Call it from another repository:
+#
+#     name: AI Review (Claude)
+#
+#     on:
+#       pull_request:
+#         types: [opened, synchronize, reopened, ready_for_review]
+#
+#     permissions:
+#       contents: read
+#       pull-requests: write
+#       id-token: write
+#
+#     jobs:
+#       review:
+#         uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/ai-review-claude.yml@v1
+#         secrets: inherit
 
+on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches:
-      - develop
-      - main
-      - release/*
+
+  workflow_call:
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      JIRA_EMAIL:
+        required: false
+      JIRA_API_TOKEN:
+        required: false
 
 permissions:
   contents: read
