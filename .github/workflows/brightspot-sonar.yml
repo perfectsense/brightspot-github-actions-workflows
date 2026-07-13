@@ -72,9 +72,9 @@ on:
         default: '18.17.1'
         type: string
       gradle-action-cache-disable:
-        description: 'Enable only if not using Gradle Remote Cache'
+        description: 'Set to true to disable the Gradle Action cache (defaults to enabled).'
         required: false
-        default: true
+        default: false
         type: boolean
       runs-on:
         description: Platform to execute on
