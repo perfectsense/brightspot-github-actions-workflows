@@ -85,7 +85,7 @@ on:
 jobs:
   sonar-cloud:
     name: "Sonar Cloud"
-    env: 
+    env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       STYLEGUIDE_BUILD_OPTS: -s
       SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
@@ -152,7 +152,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          JAVA_HOME=$JAVA_HOME_17_X64 
+          JAVA_HOME=$JAVA_HOME_21_X64
           version=$(git describe --tags --match "v[0-9]*" --abbrev=0 HEAD || echo "0")
           version=${version/v/}
           echo "Creating a new analysis for version ${version}"
@@ -163,6 +163,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          JAVA_HOME=$JAVA_HOME_17_X64 
+          JAVA_HOME=$JAVA_HOME_21_X64
           ./gradlew -x test sonar -i -Dsonar.organization="${{ inputs.sonar-organization }}" -Dsonar.projectKey="${{ steps.sonar-project-name.outputs.sonar-project }}"
 
