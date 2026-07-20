@@ -19,8 +19,8 @@ name: AI Review (Claude)
 #         secrets: inherit
 #
 # `secrets: inherit` passes the optional JIRA_HOST secret through automatically.
-# Set a JIRA_HOST org/repo secret only when the project uses a different Jira
-# site; otherwise it defaults to https://perfectsense.atlassian.net.
+# Set a JIRA_HOST org/repo secret to your Jira site's base URL to enable Jira
+# context in reviews; when it is unset the review still runs without it.
 
 on:
   pull_request:
@@ -34,9 +34,8 @@ on:
         required: false
       JIRA_API_TOKEN:
         required: false
-      # Base URL of the Jira instance used to fetch work items. Set this secret
-      # per project only when it uses a different Jira site; defaults to
-      # https://perfectsense.atlassian.net.
+      # Base URL of the Jira instance used to fetch work items. When unset,
+      # reviews run without Jira context.
       JIRA_HOST:
         required: false
 
@@ -67,7 +66,7 @@ jobs:
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          JIRA_HOST: ${{ secrets.JIRA_HOST || 'https://perfectsense.atlassian.net' }}
+          JIRA_HOST: ${{ secrets.JIRA_HOST }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         with:
           script: |
@@ -75,9 +74,10 @@ jobs:
 
             const email = process.env.JIRA_EMAIL;
             const apiToken = process.env.JIRA_API_TOKEN;
+            const host = (process.env.JIRA_HOST || '').replace(/\/+$/, '');
 
-            if (!email || !apiToken) {
-              core.notice('Jira credentials are not configured; reviewing without Jira context.');
+            if (!email || !apiToken || !host) {
+              core.notice('Jira host or credentials are not configured; reviewing without Jira context.');
               return;
             }
 
@@ -111,7 +111,6 @@ jobs:
             }
 
             const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
-            const host = (process.env.JIRA_HOST || 'https://perfectsense.atlassian.net').replace(/\/+$/, '');
             const results = [];
 
             for (const key of keys) {
