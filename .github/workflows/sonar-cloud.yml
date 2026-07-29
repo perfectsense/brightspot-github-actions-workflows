@@ -22,11 +22,19 @@ on:
 
       java-version:
         description: >-
-          JDK that runs the build and the Sonar scanner. The scanner requires 21
-          or newer, so values below 21 (or values that cannot be parsed) are
-          raised to 21 and a warning is emitted. Values of 21 or newer are passed
-          through to actions/setup-java verbatim, so specific pins such as
-          '21.0.2' or '25' are honored as written.
+          JDK that runs the build. Passed to actions/setup-java verbatim, so
+          pins such as '21.0.2' or '25' are honored as written. Set this to the
+          JDK your build/deploy workflow uses (e.g. '11') so this job's Gradle
+          cache keys match those warm remote-cache entries and the expensive
+          test and bytecode-enhancement tasks are reused rather than re-run.
+
+          The Sonar scan runs on max(java-version, 21), because the scanner will
+          not run on an older JDK. When java-version is already 21 or newer both
+          run on it — one JDK, one Gradle daemon, no seam. When it is lower the
+          scan is raised to 21 and a warning is emitted; that direction is safe
+          because analysing older bytecode on a newer JDK is the tolerable one,
+          and versions.java (which drives --release) must already be <=
+          java-version for the build to compile at all.
         required: false
         default: '21'
         type: string
@@ -117,12 +125,14 @@ jobs:
         with:
             node-version: ${{ inputs.node-version }}
 
-      # The Sonar scanner will not run on a JDK older than 21, so clamp the
-      # requested version up to that floor rather than failing deep inside the
-      # Gradle invocation with an unrelated-looking error. Anything already at 21
-      # or above is passed through untouched so version pins survive.
-      - name: Resolve scanner JDK
-        id: scanner-jdk
+      # The build runs on java-version as given, so its Gradle cache keys can
+      # match the build/deploy workflow's warm remote-cache entries. The scanner
+      # will not run on a JDK older than 21, so it runs on max(java-version, 21)
+      # — clamped here rather than failing deep inside the Gradle invocation with
+      # an unrelated-looking error. When java-version is already 21 or newer both
+      # resolve to it and the two setup-java steps below collapse to one JDK.
+      - name: Resolve build and scanner JDKs
+        id: resolve-jdks
         shell: bash
         env:
           REQUESTED: ${{ inputs.java-version }}
@@ -131,24 +141,43 @@ jobs:
           # Strip everything from the first '.' or '-' to get the feature release:
           # '21' -> 21, '21.0.2' -> 21, '21.x' -> 21, '21-ea' -> 21.
           major="${REQUESTED%%[.-]*}"
-          if [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 21 )); then
-            resolved="$REQUESTED"
-          else
-            if [[ "$major" =~ ^[0-9]+$ ]]; then
-              echo "::warning title=Sonar JDK raised to 21::java-version '${REQUESTED}' is below the Sonar scanner minimum of 21; using 21 instead."
+          if [[ "$major" =~ ^[0-9]+$ ]]; then
+            # Parseable: honour it for the build, floor it for the scanner.
+            build="$REQUESTED"
+            if (( major >= 21 )); then
+              scanner="$REQUESTED"
             else
-              echo "::warning title=Sonar JDK defaulted to 21::Could not parse java-version '${REQUESTED}'; using 21 instead."
+              echo "::warning title=Sonar scanner JDK raised to 21::java-version '${REQUESTED}' is below the Sonar scanner minimum of 21; the scan will run on 21 while the build stays on '${REQUESTED}'."
+              scanner=21
             fi
-            resolved=21
+          else
+            # Unparseable: we cannot honour it for either, so use 21 for both.
+            echo "::warning title=JDK defaulted to 21::Could not parse java-version '${REQUESTED}'; using 21 for both the build and the scan."
+            build=21
+            scanner=21
           fi
-          echo "Requested java-version: '${REQUESTED}' -> using '${resolved}'"
-          echo "value=${resolved}" >> "$GITHUB_OUTPUT"
+          echo "Requested java-version: '${REQUESTED}' -> build '${build}', scanner '${scanner}'"
+          echo "build=${build}" >> "$GITHUB_OUTPUT"
+          echo "scanner=${scanner}" >> "$GITHUB_OUTPUT"
 
-      - name: Set up JDK
-        id: setup-jdk
+      # Both JDKs are installed by setup-java unconditionally, even when the two
+      # versions are equal. Never fall back to a JAVA_HOME_<n>_X64 runner
+      # variable or any other image-provided JDK: those are image-dependent and
+      # silently expand to empty when absent, which is what made the scan run on
+      # 17 regardless of this input in the first place. A redundant second call
+      # for an already-installed version is a fast no-op.
+      - name: Set up build JDK
+        id: setup-build-jdk
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ steps.scanner-jdk.outputs.value }}
+          java-version: ${{ steps.resolve-jdks.outputs.build }}
+          distribution: ${{ inputs.java-distribution }}
+
+      - name: Set up scanner JDK
+        id: setup-scanner-jdk
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ steps.resolve-jdks.outputs.scanner }}
           distribution: ${{ inputs.java-distribution }}
 
       - name: Cache SonarCloud packages
@@ -177,21 +206,24 @@ jobs:
           fi
           echo "sonar-project=$(echo $SONAR_PROJECT)" >> $GITHUB_OUTPUT
 
+      # Runs the default task (`build` for Brightspot projects), so this is where
+      # compilation, tests and the JaCoCo report happen. It runs on the build JDK
+      # so its cache keys match the build/deploy workflow's.
       - name: Build
         if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && github.actor != 'dependabot[bot]' }}
         env:
-          JAVA_HOME: ${{ steps.setup-jdk.outputs.path }}
+          JAVA_HOME: ${{ steps.setup-build-jdk.outputs.path }}
         run: ./gradlew --scan
 
-      # JAVA_HOME is set from the setup-java step output rather than a hardcoded
-      # JAVA_HOME_<n>_X64 runner variable: those are image-dependent, silently
-      # expand to empty when the image lacks that JDK, and override the
-      # java-version the caller asked for.
+      # The scan steps run on the scanner JDK, which is >= 21. When that differs
+      # from the build JDK the `sonar` task recompiles on it, since the compiler
+      # is a Gradle task input — the expensive test and enhancement work is still
+      # reused from the Build step above.
       - name: SonarCloud Code Version
         if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') && github.actor != 'dependabot[bot]' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          JAVA_HOME: ${{ steps.setup-jdk.outputs.path }}
+          JAVA_HOME: ${{ steps.setup-scanner-jdk.outputs.path }}
         run: |
           version=$(git describe --tags --match "v[0-9]*" --abbrev=0 HEAD || echo "0")
           version=${version/v/}
@@ -202,7 +234,7 @@ jobs:
         if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') != true && github.actor != 'dependabot[bot]' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          JAVA_HOME: ${{ steps.setup-jdk.outputs.path }}
+          JAVA_HOME: ${{ steps.setup-scanner-jdk.outputs.path }}
         run: |
           ./gradlew -x test sonar -i -Dsonar.organization="${{ inputs.sonar-organization }}" -Dsonar.projectKey="${{ steps.sonar-project-name.outputs.sonar-project }}"
 
