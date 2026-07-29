@@ -21,9 +21,14 @@ on:
         type: string
 
       java-version:
-        description: 'Java version'
+        description: >-
+          JDK that runs the build and the Sonar scanner. The scanner requires 21
+          or newer, so values below 21 (or values that cannot be parsed) are
+          raised to 21 and a warning is emitted. Values of 21 or newer are passed
+          through to actions/setup-java verbatim, so specific pins such as
+          '21.0.2' or '25' are honored as written.
         required: false
-        default: '11'
+        default: '21'
         type: string
 
       node-version:
@@ -111,10 +116,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
             node-version: ${{ inputs.node-version }}
+
+      # The Sonar scanner will not run on a JDK older than 21, so clamp the
+      # requested version up to that floor rather than failing deep inside the
+      # Gradle invocation with an unrelated-looking error. Anything already at 21
+      # or above is passed through untouched so version pins survive.
+      - name: Resolve scanner JDK
+        id: scanner-jdk
+        shell: bash
+        env:
+          REQUESTED: ${{ inputs.java-version }}
+        run: |
+          set -euo pipefail
+          # Strip everything from the first '.' or '-' to get the feature release:
+          # '21' -> 21, '21.0.2' -> 21, '21.x' -> 21, '21-ea' -> 21.
+          major="${REQUESTED%%[.-]*}"
+          if [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 21 )); then
+            resolved="$REQUESTED"
+          else
+            if [[ "$major" =~ ^[0-9]+$ ]]; then
+              echo "::warning title=Sonar JDK raised to 21::java-version '${REQUESTED}' is below the Sonar scanner minimum of 21; using 21 instead."
+            else
+              echo "::warning title=Sonar JDK defaulted to 21::Could not parse java-version '${REQUESTED}'; using 21 instead."
+            fi
+            resolved=21
+          fi
+          echo "Requested java-version: '${REQUESTED}' -> using '${resolved}'"
+          echo "value=${resolved}" >> "$GITHUB_OUTPUT"
+
       - name: Set up JDK
+        id: setup-jdk
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ inputs.java-version }}
+          java-version: ${{ steps.scanner-jdk.outputs.value }}
           distribution: ${{ inputs.java-distribution }}
 
       - name: Cache SonarCloud packages
@@ -145,14 +179,20 @@ jobs:
 
       - name: Build
         if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && github.actor != 'dependabot[bot]' }}
+        env:
+          JAVA_HOME: ${{ steps.setup-jdk.outputs.path }}
         run: ./gradlew --scan
 
+      # JAVA_HOME is set from the setup-java step output rather than a hardcoded
+      # JAVA_HOME_<n>_X64 runner variable: those are image-dependent, silently
+      # expand to empty when the image lacks that JDK, and override the
+      # java-version the caller asked for.
       - name: SonarCloud Code Version
         if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') && github.actor != 'dependabot[bot]' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JAVA_HOME: ${{ steps.setup-jdk.outputs.path }}
         run: |
-          JAVA_HOME=$JAVA_HOME_21_X64
           version=$(git describe --tags --match "v[0-9]*" --abbrev=0 HEAD || echo "0")
           version=${version/v/}
           echo "Creating a new analysis for version ${version}"
@@ -162,7 +202,7 @@ jobs:
         if: ${{ inputs.sonar-cloud-enabled && env.SONAR_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') != true && github.actor != 'dependabot[bot]' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JAVA_HOME: ${{ steps.setup-jdk.outputs.path }}
         run: |
-          JAVA_HOME=$JAVA_HOME_21_X64
           ./gradlew -x test sonar -i -Dsonar.organization="${{ inputs.sonar-organization }}" -Dsonar.projectKey="${{ steps.sonar-project-name.outputs.sonar-project }}"
 
