@@ -20,8 +20,8 @@ name: AI Review (Claude)
 #
 # When this workflow is started directly by the organization RuleSet (rather than
 # through `workflow_call`) and the target repository ships its own
-# `.github/workflows/ai-review.yml`, the review is skipped so the two runs don't
-# duplicate each other.
+# `.github/workflows/ai-review.yml` or `.github/workflows/ai-review-claude.yml`,
+# the review is skipped so the two runs don't duplicate each other.
 
 on:
   pull_request:
@@ -65,15 +65,24 @@ jobs:
         with:
           fetch-depth: 1
 
-      # A project that ships its own ai-review.yml already runs the review on its
-      # own terms; the RuleSet-invoked copy stands down so the PR isn't reviewed
-      # twice. Only relevant for a direct trigger — a project calling this
-      # workflow itself is always honored.
+      # A project that ships its own review workflow already runs the review on
+      # its own terms; the RuleSet-invoked copy stands down so the PR isn't
+      # reviewed twice. Only relevant for a direct trigger — a project calling
+      # this workflow itself is always honored.
+      #
+      # The second condition keeps this repository reviewing its own PRs: on a
+      # direct trigger `github.workflow_ref` is the triggered workflow's own
+      # path, so it starts with `github.repository` only when the checkout being
+      # reviewed is the repository that hosts this file. Without it, the
+      # ai-review-claude.yml below would match itself and self-review would stop.
       - name: Check for a project-managed AI review
         id: project_review
-        if: inputs.invoked_by_project != true
+        if: |
+          inputs.invoked_by_project != true &&
+          !startsWith(github.workflow_ref, format('{0}/', github.repository))
         run: |
-          for FILE in .github/workflows/ai-review.yml .github/workflows/ai-review.yaml; do
+          for FILE in .github/workflows/ai-review.yml .github/workflows/ai-review.yaml \
+                      .github/workflows/ai-review-claude.yml .github/workflows/ai-review-claude.yaml; do
             [ -f "$FILE" ] || continue
 
             MESSAGE="The AI Review is managed within the project ($FILE), please contact support to disable the RuleSet invoked version of your Claude Review."
