@@ -17,6 +17,10 @@ name: AI Review (Claude)
 #       review:
 #         uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/ai-review-claude.yml@v1
 #         secrets: inherit
+#
+# `secrets: inherit` passes the optional JIRA_HOST secret through automatically.
+# Set a JIRA_HOST org/repo secret to your Jira site's base URL to enable Jira
+# context in reviews; when it is unset the review still runs without it.
 
 on:
   pull_request:
@@ -29,6 +33,10 @@ on:
       JIRA_EMAIL:
         required: false
       JIRA_API_TOKEN:
+        required: false
+      # Base URL of the Jira instance used to fetch work items. When unset,
+      # reviews run without Jira context.
+      JIRA_HOST:
         required: false
 
 permissions:
@@ -58,6 +66,7 @@ jobs:
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_HOST: ${{ secrets.JIRA_HOST }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         with:
           script: |
@@ -65,25 +74,38 @@ jobs:
 
             const email = process.env.JIRA_EMAIL;
             const apiToken = process.env.JIRA_API_TOKEN;
+            const host = (process.env.JIRA_HOST || '').replace(/\/+$/, '');
 
-            if (!email || !apiToken) {
-              core.notice('Jira credentials are not configured; reviewing without Jira context.');
+            if (!email || !apiToken || !host) {
+              core.notice('Jira host or credentials are not configured; reviewing without Jira context.');
               return;
             }
 
-            // Detect the Jira project from the repo's Autolink settings,
-            // defaulting to BSP when none is configured.
-            let prefix = 'BSP-';
+            // Detect the Jira project prefixes from the repo's Autolink
+            // settings, defaulting to BSP when none is configured. A repo can
+            // define several autolinks (e.g. BSP-, BSPWEB-, WEBCON-); collect
+            // them all and match the PR title against every one so the key that
+            // actually appears in the title selects the right project.
+            let prefixes = ['BSP-'];
             try {
               const { data: autolinks } = await github.rest.repos.listAutolinks(context.repo);
-              const detected = autolinks.map(a => a.key_prefix).find(p => /^[A-Z]+-$/.test(p));
-              if (detected) prefix = detected;
+              const detected = autolinks
+                .map(a => a.key_prefix)
+                .filter(p => /^[A-Z][A-Z0-9]*-$/.test(p));
+              if (detected.length > 0) prefixes = detected;
             } catch (error) {
               core.warning(`Could not read Autolink settings: ${error.message}`);
             }
+            core.info(`Jira autolink prefixes: ${prefixes.join(', ')}`);
 
-            const pattern = new RegExp(`${prefix}\\d+`, 'g');
+            // Build one pattern matching any configured prefix. The trailing
+            // `-\d+` anchors each key, so a shorter prefix (BSP-) can't swallow
+            // a longer one (BSPWEB-123) — the literal `-` after the prefix
+            // forces the correct alternative to match.
+            const alternation = prefixes.map(p => p.replace(/-$/, '')).join('|');
+            const pattern = new RegExp(`(?:${alternation})-\\d+`, 'g');
             const keys = [...new Set([...(process.env.PR_TITLE || '').matchAll(pattern)].map(m => m[0]))];
+            core.info(`Jira keys detected in PR title: ${keys.join(', ') || '<none>'}`);
             if (keys.length === 0) {
               return;
             }
@@ -93,7 +115,7 @@ jobs:
 
             for (const key of keys) {
               const response = await fetch(
-                `https://perfectsense.atlassian.net/rest/api/3/issue/${key}?fields=summary,description,status,comment`,
+                `${host}/rest/api/3/issue/${key}?fields=summary,description,status,comment`,
                 { headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' } }
               );
 
