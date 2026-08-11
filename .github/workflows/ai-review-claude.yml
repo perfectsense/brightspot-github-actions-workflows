@@ -17,12 +17,27 @@ name: AI Review (Claude)
 #       review:
 #         uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/ai-review-claude.yml@v1
 #         secrets: inherit
+#
+# When this workflow is started directly by the organization RuleSet (rather than
+# through `workflow_call`) and the target repository ships its own
+# `.github/workflows/ai-review.yml` or `.github/workflows/ai-review-claude.yml`,
+# the review is skipped so the two runs don't duplicate each other.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
   workflow_call:
+    inputs:
+      # Internal marker — do not set this from a caller. The `inputs` context is
+      # empty for the `pull_request` trigger, so this defaulting to true is what
+      # tells a project's own `uses:` invocation apart from a run started
+      # directly by the organization RuleSet.
+      invoked_by_project:
+        description: 'Reserved for internal use.'
+        type: boolean
+        required: false
+        default: true
     secrets:
       ANTHROPIC_API_KEY:
         required: false
@@ -50,10 +65,40 @@ jobs:
         with:
           fetch-depth: 1
 
+      # A project that ships its own review workflow already runs the review on
+      # its own terms; the RuleSet-invoked copy stands down so the PR isn't
+      # reviewed twice. Only relevant for a direct trigger — a project calling
+      # this workflow itself is always honored.
+      #
+      # The second condition keeps this repository reviewing its own PRs: on a
+      # direct trigger `github.workflow_ref` is the triggered workflow's own
+      # path, so it starts with `github.repository` only when the checkout being
+      # reviewed is the repository that hosts this file. Without it, the
+      # ai-review-claude.yml below would match itself and self-review would stop.
+      - name: Check for a project-managed AI review
+        id: project_review
+        if: |
+          inputs.invoked_by_project != true &&
+          !startsWith(github.workflow_ref, format('{0}/', github.repository))
+        run: |
+          for FILE in .github/workflows/ai-review.yml .github/workflows/ai-review.yaml \
+                      .github/workflows/ai-review-claude.yml .github/workflows/ai-review-claude.yaml; do
+            [ -f "$FILE" ] || continue
+
+            MESSAGE="The AI Review is managed within the project ($FILE), please contact support to disable the RuleSet invoked version of your Claude Review."
+            echo "::notice title=AI Review skipped::$MESSAGE"
+            printf '### AI Review skipped\n\n%s\n' "$MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          done
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
       # Jira context is optional: when the Jira secrets are unavailable, the
       # review still runs — it just can't evaluate the PR against the work item.
       - name: Fetch the Jira work item
         id: jira
+        if: steps.project_review.outputs.skip != 'true'
         uses: actions/github-script@v7
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
@@ -125,6 +170,7 @@ jobs:
             }
 
       - name: Review the code
+        if: steps.project_review.outputs.skip != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -165,7 +211,7 @@ jobs:
             --model claude-sonnet-4-6 --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
 
       - name: Reconcile Claude review verdict
-        if: always()
+        if: always() && steps.project_review.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
