@@ -322,6 +322,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GATING: ${{ inputs.fail-on-quality-gate }}
+          FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
         run: |
           set +e
           base="${SONAR_HOST_URL%/}"
@@ -366,10 +367,16 @@ jobs:
             printf '**Scope:** %s' "$label"
             [ -n "$url" ] && printf ' &nbsp;·&nbsp; [View details on SonarQube](%s)' "$url"
             printf '\n\n'
-            if [ "${GATING:-false}" = "true" ]; then
-              printf '_A failing quality gate fails this workflow (`fail-on-quality-gate: true`)._\n\n'
-            else
+            # Three-way, because gating requested is not the same as gating in effect:
+            # `fail-on-error: false` marks the whole job continue-on-error, which
+            # swallows the gate failure too. Claiming the gate blocks in that case
+            # would be plainly wrong on the surface people actually read.
+            if [ "${GATING:-false}" != "true" ]; then
               printf '_Informational only — a failing quality gate does not fail this workflow._\n\n'
+            elif [ "${FAIL_ON_ERROR:-true}" = "false" ]; then
+              printf '_⚠️ `fail-on-quality-gate: true` is set but has no effect: `fail-on-error: false` marks this job continue-on-error, which swallows the gate failure. Set `fail-on-error: true` to make the gate block._\n\n'
+            else
+              printf '_A failing quality gate fails this workflow (`fail-on-quality-gate: true`)._\n\n'
             fi
             case "${ce_status:-}" in
               ''|SUCCESS) ;;
@@ -394,7 +401,16 @@ jobs:
         if: ${{ always() && inputs.fail-on-quality-gate && env.SONAR_TOKEN != '' }}
         env:
           STATUS: ${{ steps.quality-gate.outputs.status }}
+          FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
         run: |
+          # This step only runs when fail-on-quality-gate is true (see `if` above), so
+          # the misconfiguration to flag is just fail-on-error being false — which makes
+          # the job continue-on-error and silently swallows the exit 1 below. Warn
+          # regardless of gate status: the config is wrong either way, and a green job
+          # someone expected to block otherwise leaves no trace in the log.
+          if [ "${FAIL_ON_ERROR:-true}" = "false" ]; then
+            echo "::warning title=Quality gate enforcement disabled::fail-on-quality-gate is true but has no effect because fail-on-error is false — continue-on-error at the job level swallows the gate failure. Set fail-on-error: true to make the gate block."
+          fi
           case "${STATUS:-}" in
             OK)
               echo "SonarQube quality gate passed."
