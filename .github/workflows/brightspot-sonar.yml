@@ -2,6 +2,11 @@ name: 'Brightspot Sonar'
 
 # Standalone, reusable Sonar analysis.
 #
+# The quality gate is informational by default: the analysis runs, the gate result is
+# rendered to the job summary, and a failing gate does not fail this workflow. Set
+# `fail-on-quality-gate: true` to opt a repo into a blocking gate — the summary is
+# rendered either way, so turning it on only adds the failure.
+#
 # Invoke it as its OWN top-level job in the caller, with `needs: build` so it
 # runs after the build (warm Gradle remote cache; skipped if the build fails) —
 # but keep `deploy` gated only on `build`, NOT on sonar, so Sonar never blocks
@@ -19,6 +24,8 @@ name: 'Brightspot Sonar'
 #       needs: build            # runs after build; reuses its warm Gradle cache
 #       uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/brightspot-sonar.yml@v2
 #       secrets: inherit        # required so the dynamic SONAR_TOKEN_<instance> resolves
+#       with:
+#         fail-on-quality-gate: true   # optional; omit to keep the gate informational
 #
 # Token: by default the dynamic SONAR_TOKEN_<instance> secret resolves only under
 # `secrets: inherit`. A caller that can't use `secrets: inherit` (e.g. it needs an
@@ -89,6 +96,21 @@ on:
           workflow so a Sonar/infra failure can't fail the build and block deploy.
         required: false
         default: true
+        type: boolean
+
+      fail-on-quality-gate:
+        description: >-
+          Fail the workflow when the SonarQube quality gate fails, making Sonar a
+          blocking gate on the PR. Defaults to false: the gate result is still
+          rendered to the job summary, but a failing gate doesn't fail the workflow.
+          Only a definitive ERROR from the gate fails the job — an indeterminate
+          result (analysis not processed in time, API unreachable) warns instead, so
+          infra trouble can't block a PR; that class of failure is governed by
+          `fail-on-error`. Note this needs `fail-on-error: true` (the default) to
+          take effect, because `fail-on-error: false` marks the whole job
+          continue-on-error and so swallows the gate failure too.
+        required: false
+        default: false
         type: boolean
 
       env1Name:
@@ -260,11 +282,15 @@ jobs:
           ./gradlew build -i \
             --init-script "${RUNNER_TEMP}/disable-checkstyle.gradle"
 
-      # Separate step so the scan time and quality-gate wait are distinct from the
-      # build. Reuses the build outputs above (compiled classes, test coverage),
-      # which are up to date, so this only runs the analysis.
-      # qualitygate.wait makes this wait for (and fail on) the quality gate, up to
-      # 20 minutes (qualitygate.timeout is in seconds).
+      # Separate step so the scan time is distinct from the build. Reuses the build
+      # outputs above (compiled classes, test coverage), which are up to date, so
+      # this only runs the analysis.
+      # sonar.qualitygate.wait is deliberately NOT set, even when
+      # fail-on-quality-gate is true: it would make the scanner exit non-zero on a
+      # failing gate, which would abort the job before the summary is rendered. The
+      # summary step below waits for the server-side analysis and reports the gate
+      # result, and the "Enforce quality gate" step after it applies the failure — so
+      # the failed conditions are always visible, gating or not.
       - name: Sonar analysis
         if: ${{ env.SONAR_TOKEN != '' }}
         timeout-minutes: 20
@@ -282,30 +308,58 @@ jobs:
           # host set by express-sonarqube.gradle or com.brightspot.gradle 3.x plugin
           # projects). System properties are applied last and always win.
           ./gradlew sonar -i \
-            -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=1200 \
             -Dsonar.projectKey="${{ steps.project-key.outputs.value }}" \
             -Dsonar.host.url="${SONAR_HOST_URL}"
 
       # Render the quality gate result (failed conditions + new-code measures +
-      # dashboard link) to the job summary — even when the gate failed above.
+      # dashboard link) to the job summary. Reporting only — this step never fails the
+      # job whatever the gate says; the optional enforcement step below does that. It
+      # publishes the gate status as an output for that step to act on.
       - name: Sonar quality gate summary
+        id: quality-gate
         if: ${{ always() && env.SONAR_TOKEN != '' }}
+        timeout-minutes: 15
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GATING: ${{ inputs.fail-on-quality-gate }}
+          FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
         run: |
           set +e
           base="${SONAR_HOST_URL%/}"
           report=$(find . -path '*/build/sonar/report-task.txt' 2>/dev/null | head -1)
           if [ -z "$report" ]; then
             printf '## SonarQube Quality Gate\n\n_Summary unavailable (no analysis report found)._\n' >> "$GITHUB_STEP_SUMMARY"
+            echo "status=UNKNOWN" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           key=$(sed -n 's/^projectKey=//p' "$report")
           url=$(sed -n 's/^dashboardUrl=//p' "$report")
+          ce=$(sed -n 's/^ceTaskUrl=//p' "$report")
+          # The scanner only submits the report; SonarQube computes the gate
+          # asynchronously. Since sonar.qualitygate.wait is no longer used, poll the
+          # compute-engine task here so the gate below is this run's result. Bounded
+          # at ~10 minutes; a timeout only degrades the summary, it never fails.
+          ce_status=""
+          if [ -n "$ce" ]; then
+            for _ in $(seq 1 60); do
+              # An unreachable API yields an empty body (jq prints nothing), which must
+              # read as UNKNOWN, not as "no polling attempted" — '' below means the
+              # report had no ceTaskUrl at all.
+              ce_status=$(curl -s -u "$SONAR_TOKEN:" "$ce" | jq -r '.task.status // "UNKNOWN"')
+              [ -z "$ce_status" ] && ce_status="UNKNOWN"
+              case "$ce_status" in SUCCESS|FAILED|CANCELED) break ;; esac
+              sleep 10
+            done
+            echo "compute-engine task status: ${ce_status}"
+          fi
           if [ -n "${PR_NUMBER:-}" ]; then scope="&pullRequest=$PR_NUMBER"; label="PR #$PR_NUMBER"; else scope=""; label="$GITHUB_REF_NAME"; fi
           qg=$(curl -s -u "$SONAR_TOKEN:" "$base/api/qualitygates/project_status?projectKey=$key$scope")
           ms=$(curl -s -u "$SONAR_TOKEN:" "$base/api/measures/component?component=$key$scope&metricKeys=new_violations,new_bugs,new_vulnerabilities,new_code_smells,new_security_hotspots,new_coverage,new_duplicated_lines_density")
           status=$(printf '%s' "$qg" | jq -r '.projectStatus.status // "UNKNOWN"')
+          # Normalize an unparseable response (jq prints nothing) so the badge below and
+          # the enforcement step both see an explicit status rather than an empty string.
+          [ -z "$status" ] && status="UNKNOWN"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
           case "$status" in OK) badge="✅ Passed" ;; ERROR) badge="❌ Failed" ;; *) badge="⚠️ $status" ;; esac
           LBL='def lbl: {"new_violations":"New issues","new_bugs":"New bugs","new_vulnerabilities":"New vulnerabilities","new_code_smells":"New code smells","new_security_hotspots":"New security hotspots","new_coverage":"Coverage on new code (%)","new_duplicated_lines_density":"Duplications on new code (%)"}[.] // .; def op: {"GT":">","LT":"<","GTE":"≥","LTE":"≤","EQ":"=","NE":"≠"}[.] // .;'
           {
@@ -313,6 +367,22 @@ jobs:
             printf '**Scope:** %s' "$label"
             [ -n "$url" ] && printf ' &nbsp;·&nbsp; [View details on SonarQube](%s)' "$url"
             printf '\n\n'
+            # Three-way, because gating requested is not the same as gating in effect:
+            # `fail-on-error: false` marks the whole job continue-on-error, which
+            # swallows the gate failure too. Claiming the gate blocks in that case
+            # would be plainly wrong on the surface people actually read.
+            if [ "${GATING:-false}" != "true" ]; then
+              printf '_Informational only — a failing quality gate does not fail this workflow._\n\n'
+            elif [ "${FAIL_ON_ERROR:-true}" = "false" ]; then
+              printf '_⚠️ `fail-on-quality-gate: true` is set but has no effect: `fail-on-error: false` marks this job continue-on-error, which swallows the gate failure. Set `fail-on-error: true` to make the gate block._\n\n'
+            else
+              printf '_A failing quality gate fails this workflow (`fail-on-quality-gate: true`)._\n\n'
+            fi
+            case "${ce_status:-}" in
+              ''|SUCCESS) ;;
+              FAILED|CANCELED) printf '_SonarQube could not process the analysis (compute-engine task %s); the result below may be stale._\n\n' "$ce_status" ;;
+              *) printf '_Timed out waiting for SonarQube to finish processing the analysis (last status: %s); the result below may be stale._\n\n' "$ce_status" ;;
+            esac
             fc=$(printf '%s' "$qg" | jq -r "$LBL"'.projectStatus.conditions[]? | select(.status=="ERROR") | "| \(.metricKey|lbl) | \(.actualValue) | \(.comparator|op) \(.errorThreshold) |"')
             if [ -n "$fc" ]; then
               printf '**Failed conditions:**\n\n| Condition | Actual | Required |\n| --- | --- | --- |\n%s\n\n' "$fc"
@@ -320,3 +390,36 @@ jobs:
             printf '**New-code measures:**\n\n| Metric | Value |\n| --- | --- |\n'
             printf '%s' "$ms" | jq -r "$LBL"'(.component.measures // []) | sort_by(.metric)[] | "| \(.metric|lbl) | \((.period.value // .value)) |"'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Opt-in blocking gate. Deliberately the LAST step and gated on always(), so the
+      # summary above is always rendered first and the failed conditions stay visible
+      # in the run even when this fails the job.
+      # Only a definitive ERROR fails: an indeterminate status means the analysis
+      # wasn't processed in time or the API was unreachable, which is infra trouble
+      # (see `fail-on-error`), and failing a PR on that would make the gate flaky.
+      - name: Enforce quality gate
+        if: ${{ always() && inputs.fail-on-quality-gate && env.SONAR_TOKEN != '' }}
+        env:
+          STATUS: ${{ steps.quality-gate.outputs.status }}
+          FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        run: |
+          # This step only runs when fail-on-quality-gate is true (see `if` above), so
+          # the misconfiguration to flag is just fail-on-error being false — which makes
+          # the job continue-on-error and silently swallows the exit 1 below. Warn
+          # regardless of gate status: the config is wrong either way, and a green job
+          # someone expected to block otherwise leaves no trace in the log.
+          if [ "${FAIL_ON_ERROR:-true}" = "false" ]; then
+            echo "::warning title=Quality gate enforcement disabled::fail-on-quality-gate is true but has no effect because fail-on-error is false — continue-on-error at the job level swallows the gate failure. Set fail-on-error: true to make the gate block."
+          fi
+          case "${STATUS:-}" in
+            OK)
+              echo "SonarQube quality gate passed."
+              ;;
+            ERROR)
+              echo "::error title=SonarQube quality gate failed::The quality gate did not pass. See the job summary for the failed conditions."
+              exit 1
+              ;;
+            *)
+              echo "::warning title=SonarQube quality gate not evaluated::Could not determine the quality gate status ('${STATUS:-none}'); not failing the job. See the job summary."
+              ;;
+          esac
