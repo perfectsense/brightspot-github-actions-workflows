@@ -201,16 +201,19 @@ jobs:
 
             ${{ steps.jira.outputs.context }}
             
-            After posting any inline comments or top-level feedback:
-            - If you found any feedback requiring action — including minor style issues, not just blocking bugs — submit a blocking review:
-                gh pr review ${{ github.event.pull_request.number }} --request-changes --body "Claude found issues that should be addressed before merging. See inline comments for details."
-            - If you only have informational notes with no required actions, or the PR looks good, submit a neutral review:
+            After posting any inline comments or top-level feedback, submit exactly one review.
+            This review is advisory: never use --request-changes or --approve. A change-request
+            verdict holds the merge through the organization RuleSet's pull_request rule even
+            when every status check is green, so findings belong in the comments, not the gate.
+            - If you found feedback requiring action — including minor style issues, not just blocking bugs:
+                gh pr review ${{ github.event.pull_request.number }} --comment --body "Claude found issues worth addressing before merging. See inline comments for details. This review is advisory and does not block the merge."
+            - If you only have informational notes with no required actions, or the PR looks good:
                 gh pr review ${{ github.event.pull_request.number }} --comment --body "Claude review complete. No required changes."
-            - Do not submit both — pick one verdict based on whether any comment requires action.
+            - Do not submit both — pick one body based on whether any comment requires action.
           claude_args: |
             --model claude-sonnet-4-6 --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
 
-      - name: Reconcile Claude review verdict
+      - name: Clear blocking Claude reviews
         if: always() && steps.project_review.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -227,19 +230,17 @@ jobs:
             | jq -r '[.[] | select(.body != null and .body != "")] | last | .state // ""')
           echo "Latest Claude verdict: ${LATEST_VERDICT:-<none>}"
 
-          if [ "$LATEST_VERDICT" = "CHANGES_REQUESTED" ]; then
-            echo "Claude requested changes — failing the status check"
-            exit 1
-          fi
-
-          # No required changes: dismiss any still-open change-request reviews so
-          # they stop blocking the merge. A neutral --comment review does NOT
-          # supersede a prior --request-changes on its own.
+          # The review is advisory, so this step never fails the check. Dismiss any
+          # change-request review instead: a neutral --comment review does NOT
+          # supersede a prior --request-changes on its own, and while one stands the
+          # organization RuleSet's pull_request rule holds the merge. Reaching here
+          # means the verdict was left over from before the review went advisory, or
+          # Claude ignored the prompt — dismiss it either way.
           STALE=$(echo "$REVIEWS" | jq -r '.[] | select(.state == "CHANGES_REQUESTED") | .id')
           for ID in $STALE; do
-            echo "Dismissing stale Claude change-request review $ID"
+            echo "Dismissing blocking Claude review $ID"
             gh api -X PUT repos/$REPO/pulls/$PR/reviews/$ID/dismissals \
-              -f message="Superseded by Claude's latest review: no required changes." \
+              -f message="The Claude review is advisory and does not block merging. See the inline comments for any findings." \
               -f event="DISMISS"
           done
           
