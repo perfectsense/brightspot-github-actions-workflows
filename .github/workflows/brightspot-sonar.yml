@@ -42,8 +42,8 @@ name: 'Brightspot Sonar'
 #       with:
 #         env1Name: SONAR_TOKEN
 #
-# Runs only when the repo has the `sonar` custom property set (e.g. `02`), which
-# selects the SonarQube instance and token. It is self-contained: it does its own
+# The repo's `sonar` custom property selects the SonarQube instance and token,
+# defaulting to `02` when unset. It is self-contained: it does its own
 # Gradle build so it doesn't depend on the build workflow's outputs — tests run so
 # Sonar gets coverage data, and styleguide screenshots are skipped
 # (`STYLEGUIDE_BUILD_OPTS=-s`); the warm Gradle remote cache keeps that fast.
@@ -140,8 +140,8 @@ jobs:
     name: "Sonar"
     # Dependabot can't read the dynamic token; the per-step guard below skips
     # repos that don't have the `sonar` property set.
-    # Org kill-switch: skip entirely when the SONAR_02_ENABLED variable is 'false'.
-    if: ${{ github.actor != 'dependabot[bot]' && vars.SONAR_02_ENABLED != 'false' }}
+    # Org kill-switch: skip entirely when the SONAR_ENABLED variable is 'false'.
+    if: ${{ github.actor != 'dependabot[bot]' && vars.SONAR_ENABLED != 'false' }}
     # When fail-on-error is false (e.g. bundled into a build workflow), tolerate a
     # Sonar/infra failure so it can't fail the build and block the deploy.
     continue-on-error: ${{ !inputs.fail-on-error }}
@@ -168,11 +168,9 @@ jobs:
               repo: context.repo.repo,
             });
             const property = data.find(p => p.property_name === 'sonar');
-            const value = property && property.value ? String(property.value) : '';
-            core.info(`sonar custom property: '${value}'`);
-            if (!value) {
-              core.warning("The 'sonar' custom property is not set on this repository; skipping Sonar. Contact an Admin to enable it.");
-            }
+            // Default to the 02 instance when the repo hasn't set the property.
+            const value = property && property.value ? String(property.value) : '02';
+            core.info(`Sonar instance: '${value}'`);
             core.setOutput('value', value);
 
       - name: Configure Sonar host and token from the `sonar` property
