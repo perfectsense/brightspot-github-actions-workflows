@@ -17,6 +17,10 @@ jobs:
       pull-requests: read
     steps:
       - name: Check the PR title against the Conventional Commits spec
+        # Bot-authored pull requests have nobody to rename them. Skipped at the step and
+        # not the job: consuming repositories require this job's check by name, and a
+        # skipped job never reports one -- blocking the merge instead of exempting it.
+        if: ${{ github.event.pull_request.user.type != 'Bot' }}
         uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
