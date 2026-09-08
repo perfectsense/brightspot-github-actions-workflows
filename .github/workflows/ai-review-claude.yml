@@ -24,6 +24,14 @@ name: AI Review (Claude)
 # to the Anthropic API and ANTHROPIC_API_KEY. The provider, model and region are
 # fixed by this workflow; callers cannot override them.
 #
+# When the organization variable AI_REVIEW_USAGE_LOG_GROUP names a CloudWatch log
+# group, a Bedrock run also publishes its total_cost_usd there, tagged with the
+# same attribution the request metadata carries, so Log Insights can report spend
+# per repository, PR or job. The OIDC role needs logs:CreateLogStream and
+# logs:PutLogEvents on that group. `vars` resolves against the calling repository,
+# so an organization-level variable covers every caller inside the organization
+# and leaves the rest reporting nothing.
+#
 # When this workflow is started directly by the organization RuleSet (rather than
 # through `workflow_call`) and the target repository ships its own
 # `.github/workflows/ai-review.yml` or `.github/workflows/ai-review-claude.yml`,
@@ -245,6 +253,7 @@ jobs:
           retry-max-attempts: 3
 
       - name: Review the code
+        id: review
         if: steps.project_review.outputs.skip != 'true'
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
@@ -322,4 +331,74 @@ jobs:
               -f message="The Claude review is advisory and does not block merging. See the inline comments for any findings." \
               -f event="DISMISS"
           done
-          
+
+      # `total_cost_usd` is only known once the run has finished, so unlike the
+      # rest of the attribution it cannot ride along on the Bedrock request
+      # metadata. Publishing it as a companion CloudWatch record carrying the
+      # same fields lets a Log Insights query report spend per repo, PR or job
+      # alongside the model invocation logs.
+      #
+      # Gated on the log group being configured — a repository outside the
+      # organization has nothing to write to — and on Bedrock, the only path
+      # holding AWS credentials. The role needs logs:CreateLogStream and
+      # logs:PutLogEvents on the group; without them the cost is dropped with a
+      # warning rather than failing the job.
+      - name: Publish the review cost
+        if: always() && steps.provider.outputs.provider == 'bedrock' && vars.AI_REVIEW_USAGE_LOG_GROUP != ''
+        continue-on-error: true
+        env:
+          LOG_GROUP: ${{ vars.AI_REVIEW_USAGE_LOG_GROUP }}
+          EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
+          SESSION: ${{ steps.review.outputs.session_id }}
+          MODEL: ${{ steps.provider.outputs.model }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${EXECUTION_FILE:-}" ] || [ ! -f "$EXECUTION_FILE" ]; then
+            echo "No execution output; nothing to publish."
+            exit 0
+          fi
+
+          # The execution file holds the run's message array, whose trailing
+          # result message carries the totals. `empty` covers a run that ended
+          # without one — a crash or a cancellation — leaving nothing to report.
+          EVENT=$(jq -c \
+            --arg repo "$REPO" \
+            --arg pr "$PR" \
+            --arg run_id "$RUN_ID" \
+            --arg run_attempt "$RUN_ATTEMPT" \
+            --arg model "$MODEL" \
+            --arg session_id "$SESSION" \
+            '[.[] | select(.type == "result" and .total_cost_usd != null)] | last // empty
+               | { workflow: "ai-review", job: "review", $repo, $pr, $run_id, $run_attempt,
+                   $model, $session_id, total_cost_usd, duration_ms, num_turns,
+                   is_error, subtype, usage }
+               | with_entries(select(.value != null and .value != ""))' \
+            "$EXECUTION_FILE")
+
+          if [ -z "$EVENT" ]; then
+            echo "The run reported no cost."
+            exit 0
+          fi
+
+          echo "$EVENT"
+
+          # A stream per run attempt keeps concurrent reviews from interleaving.
+          STREAM="review/$REPO/$RUN_ID-$RUN_ATTEMPT"
+          aws logs create-log-stream \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$STREAM" 2>/dev/null || true
+
+          EVENTS=$(jq -cn --argjson ts "$(( $(date +%s) * 1000 ))" --arg message "$EVENT" \
+            '[{ timestamp: $ts, message: $message }]')
+
+          if ! OUTPUT=$(aws logs put-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$STREAM" \
+            --log-events "$EVENTS" 2>&1); then
+            echo "::warning title=AI Review cost not published::$OUTPUT"
+          fi
