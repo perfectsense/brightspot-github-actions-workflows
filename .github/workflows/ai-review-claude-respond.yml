@@ -35,10 +35,149 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Bedrock is used wherever it is actually configured: this workflow is
+      # public and runs against repositories outside the organization that holds
+      # the OIDC role, which have no way to assume it. Falling back on the
+      # secret's absence keeps those repos on the API key instead of failing them
+      # at the auth step. Kept in step with the review workflow's resolution.
+      - name: Resolve the provider
+        id: provider
+        if: steps.config.outputs.tool == 'claude'
+        env:
+          MODEL: claude-sonnet-4-6
+          ROLE: ${{ secrets.AWS_BEDROCK_ROLE_TO_ASSUME }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$ROLE" ]; then
+            echo "Provider: Anthropic API"
+            echo "provider=api" >> "$GITHUB_OUTPUT"
+            echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Bedrock serves Claude through cross-region inference profiles, whose
+          # ID carries a geography prefix — `us.` for the pinned us-east-1 region.
+          # Claude Code uses the Invoke API, so the ID must be the profile form
+          # (us.anthropic.<model>); the Mantle form (anthropic.<model>) returns
+          # 400 there.
+          echo "Provider: Amazon Bedrock (us.anthropic.$MODEL)"
+          echo "provider=bedrock" >> "$GITHUB_OUTPUT"
+          echo "model=us.anthropic.$MODEL" >> "$GITHUB_OUTPUT"
+
+      # Both outputs attribute Bedrock usage to the repository being responded
+      # in. The session name is what tells repos apart in `identity.arn` in the
+      # model invocation logs, since every repo assumes the same org-level role;
+      # the header tags each call directly. Bedrock records the tags only where
+      # invocation logging is enabled — without it the call still succeeds
+      # untagged. `job` separates this spend from the review job's.
+      #
+      # Session names cap at 64 characters and reject `/`, so this is the repo
+      # name alone, truncated from the tail — the distinctive end. The length
+      # guard is required: bash returns empty, not the whole string, when a
+      # negative substring offset exceeds the string's length.
+      - name: Build the Bedrock attribution
+        id: usage
+        if: steps.provider.outputs.provider == 'bedrock'
+        env:
+          REPO: ${{ github.repository }}
+          NAME: ${{ github.event.repository.name }}
+          PR: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: |
+          [ "${#NAME}" -le 54 ] || NAME="${NAME: -54}"
+          printf 'session=ai-review-%s\n' "$NAME" >> "$GITHUB_OUTPUT"
+          printf 'header=X-Amzn-Bedrock-Request-Metadata: {"repo": "%s", "workflow": "ai-review", "job": "respond", "pr": "%s"}\n' \
+            "$REPO" "$PR" >> "$GITHUB_OUTPUT"
+
+      # Bedrock authenticates by OIDC only — there is no API-key path.
+      - name: Configure AWS credentials
+        if: steps.provider.outputs.provider == 'bedrock'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_BEDROCK_ROLE_TO_ASSUME }}
+          role-session-name: ${{ steps.usage.outputs.session }}
+          aws-region: us-east-1
+          retry-max-attempts: 3
+
       - name: Respond to @claude mention
+        id: respond
         if: steps.config.outputs.tool == 'claude'
         uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_CUSTOM_HEADERS: ${{ steps.usage.outputs.header }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ steps.provider.outputs.provider == 'bedrock' && '' || secrets.ANTHROPIC_API_KEY }}
+          use_bedrock: ${{ steps.provider.outputs.provider == 'bedrock' }}
           claude_args: |
-            --model claude-sonnet-4-6 --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
+            --model ${{ steps.provider.outputs.model }} --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
+
+      # `total_cost_usd` is only known once the run has finished, so unlike the
+      # rest of the attribution it cannot ride along on the Bedrock request
+      # metadata. Publishing it as a companion CloudWatch record carrying the
+      # same fields lets a Log Insights query report spend per repo, PR or job
+      # alongside the model invocation logs.
+      #
+      # Gated on the log group being configured — a repository outside the
+      # organization has nothing to write to — and on Bedrock, the only path
+      # holding AWS credentials. The role needs logs:CreateLogStream and
+      # logs:PutLogEvents on the group; without them the cost is dropped with a
+      # warning rather than failing the job.
+      - name: Publish the respond cost
+        if: always() && steps.provider.outputs.provider == 'bedrock' && vars.AI_REVIEW_USAGE_LOG_GROUP != ''
+        continue-on-error: true
+        env:
+          LOG_GROUP: ${{ vars.AI_REVIEW_USAGE_LOG_GROUP }}
+          EXECUTION_FILE: ${{ steps.respond.outputs.execution_file }}
+          SESSION: ${{ steps.respond.outputs.session_id }}
+          MODEL: ${{ steps.provider.outputs.model }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number || github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${EXECUTION_FILE:-}" ] || [ ! -f "$EXECUTION_FILE" ]; then
+            echo "No execution output; nothing to publish."
+            exit 0
+          fi
+
+          # The execution file holds the run's message array, whose trailing
+          # result message carries the totals. `empty` covers a run that ended
+          # without one — a crash or a cancellation — leaving nothing to report.
+          EVENT=$(jq -c \
+            --arg repo "$REPO" \
+            --arg pr "$PR" \
+            --arg run_id "$RUN_ID" \
+            --arg run_attempt "$RUN_ATTEMPT" \
+            --arg model "$MODEL" \
+            --arg session_id "$SESSION" \
+            '[.[] | select(.type == "result" and .total_cost_usd != null)] | last // empty
+               | { workflow: "ai-review", job: "respond", $repo, $pr, $run_id, $run_attempt,
+                   $model, $session_id, total_cost_usd, duration_ms, num_turns,
+                   is_error, subtype, usage }
+               | with_entries(select(.value != null and .value != ""))' \
+            "$EXECUTION_FILE")
+
+          if [ -z "$EVENT" ]; then
+            echo "The run reported no cost."
+            exit 0
+          fi
+
+          echo "$EVENT"
+
+          # A stream per run attempt keeps concurrent reviews from interleaving.
+          STREAM="respond/$REPO/$RUN_ID-$RUN_ATTEMPT"
+          aws logs create-log-stream \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$STREAM" 2>/dev/null || true
+
+          EVENTS=$(jq -cn --argjson ts "$(( $(date +%s) * 1000 ))" --arg message "$EVENT" \
+            '[{ timestamp: $ts, message: $message }]')
+
+          if ! OUTPUT=$(aws logs put-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$STREAM" \
+            --log-events "$EVENTS" 2>&1); then
+            echo "::warning title=AI Review cost not published::$OUTPUT"
+          fi
