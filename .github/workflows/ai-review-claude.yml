@@ -18,6 +18,12 @@ name: AI Review (Claude)
 #         uses: perfectsense/brightspot-github-actions-workflows/.github/workflows/ai-review-claude.yml@v1
 #         secrets: inherit
 #
+# The review runs on Amazon Bedrock, authenticating with the org-level
+# AWS_BEDROCK_ROLE_TO_ASSUME secret over OIDC. When that secret is not available
+# — any repository outside the organization that owns it — the review falls back
+# to the Anthropic API and ANTHROPIC_API_KEY. The provider, model and region are
+# fixed by this workflow; callers cannot override them.
+#
 # When this workflow is started directly by the organization RuleSet (rather than
 # through `workflow_call`) and the target repository ships its own
 # `.github/workflows/ai-review.yml` or `.github/workflows/ai-review-claude.yml`,
@@ -40,6 +46,12 @@ on:
         default: true
     secrets:
       ANTHROPIC_API_KEY:
+        # Only needed when the review resolves to the Anthropic API.
+        required: false
+      AWS_BEDROCK_ROLE_TO_ASSUME:
+        # OIDC role granting bedrock:InvokeModel*. An org-level secret, so a
+        # caller inside the owning organization using `secrets: inherit` needs no
+        # repo-level setup.
         required: false
       JIRA_EMAIL:
         required: false
@@ -169,12 +181,78 @@ jobs:
               );
             }
 
+      # Bedrock is used wherever it is actually configured: this workflow is
+      # public and called from repositories outside the organization that holds
+      # the OIDC role, which have no way to assume it. Falling back on the
+      # secret's absence keeps those callers on the API key instead of failing
+      # them at the auth step.
+      - name: Resolve the provider
+        id: provider
+        if: steps.project_review.outputs.skip != 'true'
+        env:
+          MODEL: claude-sonnet-4-6
+          ROLE: ${{ secrets.AWS_BEDROCK_ROLE_TO_ASSUME }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$ROLE" ]; then
+            echo "Provider: Anthropic API"
+            echo "provider=api" >> "$GITHUB_OUTPUT"
+            echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Bedrock serves Claude through cross-region inference profiles, whose
+          # ID carries a geography prefix — `us.` for the pinned us-east-1 region.
+          # Claude Code uses the Invoke API, so the ID must be the profile form
+          # (us.anthropic.<model>); the Mantle form (anthropic.<model>) returns
+          # 400 there.
+          echo "Provider: Amazon Bedrock (us.anthropic.$MODEL)"
+          echo "provider=bedrock" >> "$GITHUB_OUTPUT"
+          echo "model=us.anthropic.$MODEL" >> "$GITHUB_OUTPUT"
+
+      # Both outputs attribute Bedrock usage to the calling repo. The session name
+      # is what tells repos apart in `identity.arn` in the model invocation logs,
+      # since every repo assumes the same org-level role; the header tags each call
+      # directly. Bedrock records the tags only where invocation logging is enabled
+      # — without it the call still succeeds untagged.
+      #
+      # Session names cap at 64 characters and reject `/`, so this is the repo name
+      # alone, truncated from the tail — the distinctive end. The length guard is
+      # required: bash returns empty, not the whole string, when a negative
+      # substring offset exceeds the string's length.
+      - name: Build the Bedrock attribution
+        id: usage
+        if: steps.provider.outputs.provider == 'bedrock'
+        env:
+          REPO: ${{ github.repository }}
+          NAME: ${{ github.event.repository.name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          [ "${#NAME}" -le 54 ] || NAME="${NAME: -54}"
+          printf 'session=ai-review-%s\n' "$NAME" >> "$GITHUB_OUTPUT"
+          printf 'header=X-Amzn-Bedrock-Request-Metadata: {"repo": "%s", "workflow": "ai-review", "job": "review", "pr": "%s"}\n' \
+            "$REPO" "$PR" >> "$GITHUB_OUTPUT"
+
+      # Bedrock authenticates by OIDC only — there is no API-key path.
+      - name: Configure AWS credentials
+        if: steps.provider.outputs.provider == 'bedrock'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_BEDROCK_ROLE_TO_ASSUME }}
+          role-session-name: ${{ steps.usage.outputs.session }}
+          aws-region: us-east-1
+          retry-max-attempts: 3
+
       - name: Review the code
         if: steps.project_review.outputs.skip != 'true'
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_CUSTOM_HEADERS: ${{ steps.usage.outputs.header }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ steps.provider.outputs.provider == 'bedrock' && '' || secrets.ANTHROPIC_API_KEY }}
+          use_bedrock: ${{ steps.provider.outputs.provider == 'bedrock' }}
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
@@ -212,7 +290,7 @@ jobs:
                 gh pr review ${{ github.event.pull_request.number }} --comment --body "Claude review complete. No required changes."
             - Do not submit both — pick one body based on whether any comment requires action.
           claude_args: |
-            --model claude-sonnet-4-6 --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
+            --model ${{ steps.provider.outputs.model }} --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Grep,mcp__github_inline_comment__create_inline_comment,Read"
 
       - name: Clear blocking Claude reviews
         if: always() && steps.project_review.outputs.skip != 'true'
