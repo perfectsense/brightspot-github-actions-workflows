@@ -160,7 +160,7 @@ jobs:
           fi
       - name: Read the `sonar` custom property
         id: sonar-property
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { data } = await github.request('GET /repos/{owner}/{repo}/properties/values', {
@@ -191,7 +191,7 @@ jobs:
             echo "SONAR_TOKEN=${SONAR_TOKEN_DYNAMIC}" >> "$GITHUB_ENV"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: ${{ steps.sonar-property.outputs.value != '' }}
         with:
           lfs: true
@@ -199,7 +199,7 @@ jobs:
 
       - name: Setup Node
         if: ${{ steps.sonar-property.outputs.value != '' }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ inputs.node-version }}
 
@@ -208,7 +208,7 @@ jobs:
       - name: Set up JDK (Sonar scanner)
         id: setup-scanner-jdk
         if: ${{ steps.sonar-property.outputs.value != '' }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version: ${{ inputs.java-version }}
           distribution: ${{ inputs.java-distribution }}
@@ -220,20 +220,20 @@ jobs:
       - name: Set up JDK (build)
         id: setup-build-jdk
         if: ${{ steps.sonar-property.outputs.value != '' && inputs.build-java-version != '' }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version: ${{ inputs.build-java-version }}
           distribution: ${{ inputs.java-distribution }}
 
       - name: Setup Gradle
         if: ${{ steps.sonar-property.outputs.value != '' }}
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           cache-disabled: ${{ inputs.gradle-action-cache-disable }}
 
       - name: Cache Sonar packages
         if: ${{ steps.sonar-property.outputs.value != '' }}
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
