@@ -121,11 +121,34 @@ jobs:
           java-version: ${{ inputs.java-version }}
           distribution: ${{ inputs.java-distribution }}
 
+      # On self-hosted runners, caches go to S3 in-region under credentials
+      # scoped to this repository. Requires the caller to grant
+      # `permissions: id-token: write`; otherwise this is a no-op and the cache
+      # steps below use GitHub's cache.
+      - uses: perfectsense/.github/cache-credentials@main
+
       - name: Setup Gradle
         if: ${{ inputs.build-gradle }}
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-disabled: ${{ inputs.gradle-action-cache-disable }}
+          # The Gradle action can only cache through GitHub's backend, so on
+          # self-hosted runners the explicit step below caches Gradle home instead.
+          cache-disabled: ${{ inputs.gradle-action-cache-disable || runner.environment == 'self-hosted' }}
+
+      - name: Gradle Cache
+        if: ${{ inputs.build-gradle && !inputs.gradle-action-cache-disable && runner.environment == 'self-hosted' }}
+        uses: runs-on/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            !~/.gradle/caches/*/plugin-resolution
+            !~/.gradle/caches/build-cache-1
+            !~/.gradle/caches/journal-1
+            !~/.gradle/caches/**/*.lock
+          key: ${{ runner.os }}-${{ runner.arch }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gradle-
 
       - name: Get Tag Version
         shell: bash
@@ -139,26 +162,30 @@ jobs:
           ref: v2
           path: ./brightspot
 
+      # runs-on/cache is a drop-in for actions/cache that stores in S3 when the
+      # cache-credentials step above enabled it, and in GitHub's cache otherwise.
       - name: Maven Cache
         if: ${{ inputs.build-maven }}
-        uses: actions/cache@v4
+        uses: runs-on/cache@v5
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            ${{ runner.os }}-maven-
+            ${{ runner.os }}-${{ runner.arch }}-maven-
 
       - name: NPM Cache
         if: ${{ inputs.cache-npm}}
-        uses: actions/cache@v4
+        uses: runs-on/cache@v5
         with:
+          # ~/.cache/yarn is Yarn 1's cache; ~/.yarn/cache is Yarn Berry's.
           path: |
             ~/.npm
+            ~/.cache/yarn
             ~/.yarn/cache
             ~/.config/yarn/global
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-npm-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-npm-
+            ${{ runner.os }}-${{ runner.arch }}-npm-
 
       - name: Build with Maven
         if: ${{ inputs.build-maven }}
