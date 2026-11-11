@@ -122,6 +122,14 @@ jobs:
       caller-sha: ${{ steps.workflows-version.outputs.caller-sha }}
       account-id: ${{ steps.project-account.outputs.account-id }}
     steps:
+      - name: Repository move notice
+        continue-on-error: true
+        shell: bash
+        run: |
+          MESSAGE="The perfectsense/brightspot-github-actions-workflows repository is moving to the brightspot organization. After the move, change every 'uses:' reference from perfectsense/brightspot-github-actions-workflows to brightspot/brightspot-github-actions-workflows."
+          echo "::warning title=Workflow repository is moving::$MESSAGE"
+          printf '### Workflow repository is moving\n\n> [!WARNING]\n> %s\n' "$MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
