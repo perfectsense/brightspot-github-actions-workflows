@@ -67,6 +67,14 @@ jobs:
       container-build-tag: ${{ steps.build-container.outputs.container-build-tag }}
       container-version-tag: ${{ steps.build-container.outputs.container-version-tag }}
     steps:
+      - name: Repository move notice
+        continue-on-error: true
+        shell: bash
+        run: |
+          MESSAGE="The perfectsense/brightspot-github-actions-workflows repository is moving to the brightspot organization. After the move, change every 'uses:' reference from perfectsense/brightspot-github-actions-workflows to brightspot/brightspot-github-actions-workflows."
+          echo "::warning title=Workflow repository is moving::$MESSAGE"
+          printf '### Workflow repository is moving\n\n> [!WARNING]\n> %s\n' "$MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@v3
 
       - name: Setup Node
