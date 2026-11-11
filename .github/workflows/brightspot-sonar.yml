@@ -147,6 +147,14 @@ jobs:
     continue-on-error: ${{ !inputs.fail-on-error }}
     runs-on: ${{ inputs.runs-on }}
     steps:
+      - name: Repository move notice
+        continue-on-error: true
+        shell: bash
+        run: |
+          MESSAGE="The perfectsense/brightspot-github-actions-workflows repository is moving to the brightspot organization. After the move, change every 'uses:' reference from perfectsense/brightspot-github-actions-workflows to brightspot/brightspot-github-actions-workflows."
+          echo "::warning title=Workflow repository is moving::$MESSAGE"
+          printf '### Workflow repository is moving\n\n> [!WARNING]\n> %s\n' "$MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Set Environment Variables
         run: |
           if [ -n "${{ inputs.env1Name }}" ]; then
